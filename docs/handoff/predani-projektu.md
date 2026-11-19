@@ -1,5 +1,24 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- maintenance-update -->
+## 19. 11. večer: údržba a průzkum překladu
+
+- **Git:** falešné změny (konce řádků, příznaky souborů) v obou repozitářích
+  pryč; `core.filemode=false` (kvůli pohledu z Linuxu). `Fronta.cmd` v repozitáři.
+- **Fronta:** `Fronta.cmd` spouští každou úlohu přes `tools/queue_run.ps1` v
+  samostatném `cmd` (proměnné z jedné úlohy už neprosakují do další) s limitem
+  1 h nebo `rem timeout=<s>` v úloze; po limitu `taskkill /T` celého stromu.
+  Ověřeno (`build/qtest`, smazáno). **Po aktualizaci okno fronty restartovat.**
+- **Navigace v menu:** `tools/menu_nav.py` (benchmark i playtest): každé 2 s,
+  Start během `intro/interplay.bik`, jinak A, s `--easy` v nabídce obtížnosti
+  Up+A. Carbon ve 35 s (dřív 105 s, občas až 265 s): `build/nav-bench1/2`
+  116.6 / 133.1 FPS vše OK, `build/nav-easy` bar načten.
+- **Úklid:** `build` 12 GB -> 160 MB (snapshoty difftestu, série snímků,
+  záloha gen); v `bin/` jen `fbos-before-movsx.exe` jako záloha.
+- **Překlad:** průzkum v `docs/preklad.md` -- text v `gtext.sdb` (UTF-16,
+  ~37 600 slov), písmo umí Latin-1, ale ne háčky ani ů (ověřeno ve hře).
+<!-- /maintenance-update -->
+
 <!-- bink-update -->
 ## 19. 11. večer: rozbité pixely ve videích (Bink) -- VYŘEŠENO
 

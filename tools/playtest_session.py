@@ -1,7 +1,8 @@
 """Local interactive runtime test through the toolkit's live pad input file.
 
-Fresh games follow the log rather than a fixed clock: the fixed menu presses
-run to 80 s, then A is pressed every 5 s until Carbon loads (+15 s), and the
+Fresh games follow the log rather than a fixed clock: tools/menu_nav.py
+presses through the menus by what is playing (Start in the intro, A
+elsewhere, Up for Pansy with --easy) until Carbon loads (+15 s), and the
 scripted route (written as times from 125 s, as before) is sent live from
 Carbon + 18 s. Menus that fall back to the attract loop no longer derail it.
 """
@@ -86,14 +87,11 @@ if args.combat_repro:
 follow = not args.load
 route = []
 if follow:
-    fixed = []
     for step in pad.split(','):
         t, rest = step.split(':', 1)
-        if int(t) < 80000:
-            fixed.append(step)
-        elif int(t) >= 125000:
+        if int(t) >= 125000:
             route.append(((int(t) - 125000) / 1000.0, rest))
-    pad = ','.join(fixed)
+    pad = ''                            # menus: tools/menu_nav.py
     route.sort(key=lambda r: r[0])
 CARBON = 'c1\\CRB_1a\\CRB_1a.ddf'
 env = dict(os.environ, RECOMP_PAD_SCRIPT=pad, RECOMP_PB_EXEC='1',
@@ -110,7 +108,10 @@ executable_sha256 = hashlib.sha256(executable.read_bytes()).hexdigest()
 frames = []
 next_capture = 0
 carbon_at = None
-next_a = 80.0
+spec_nav = importlib.util.spec_from_file_location('menu_nav', root / 'tools/menu_nav.py')
+menu_nav = importlib.util.module_from_spec(spec_nav)
+spec_nav.loader.exec_module(menu_nav)
+nav = menu_nav.MenuNav(capture / 'runtime.log', easy=args.easy)
 log_pos = 0
 log_tail = ''
 live = (capture / 'live.txt').open('a', encoding='ascii')
@@ -127,19 +128,12 @@ with (capture / 'runtime.log').open('wb') as log:
             elapsed = time.monotonic() - started
             if elapsed >= args.seconds or (capture / 'stop.flag').exists():
                 break
-            if follow and carbon_at is None:
-                with (capture / 'runtime.log').open('rb') as f:
-                    f.seek(log_pos)
-                    chunk = f.read().decode('latin-1')
-                    log_pos += len(chunk)
-                if CARBON in log_tail + chunk:
-                    carbon_at = elapsed
+            if follow:
+                for button in nav.poll(elapsed):
+                    press(button)
+                if carbon_at is None and nav.carbon_at is not None:
+                    carbon_at = nav.carbon_at
                     print('Carbon loaded at %.1fs' % carbon_at, flush=True)
-                log_tail = chunk[-200:]
-            if follow and elapsed >= next_a and (carbon_at is None or
-                                                 elapsed < carbon_at + 15):
-                press('a')
-                next_a += 5
             while route and carbon_at is not None and \
                     elapsed >= carbon_at + 18 + route[0][0]:
                 press(route.pop(0)[1])

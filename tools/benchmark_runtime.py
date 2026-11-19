@@ -1,11 +1,11 @@
 """Measure completed GPU flips and process CPU time in a stationary Carbon scene.
 
-The run follows the game instead of a fixed clock: after the fixed menu
-presses (to 80 s) it presses A every 5 s until the log shows Carbon loading
-(and 15 s more for the intro dialog); measurement starts --settle seconds
-after Carbon loads, and the --combat-after route is sent through
-RECOMP_PAD_LIVE relative to the end of measurement. A fixed timeline broke
-whenever the menus took longer (the attract loop can restart the intro).
+The run follows the game instead of a fixed clock: tools/menu_nav.py presses
+through the menus by what the log shows is playing until Carbon loads (and
+15 s more for the intro dialog); measurement starts --settle seconds after
+Carbon loads, and the --combat-after route is sent through RECOMP_PAD_LIVE
+relative to the end of measurement. A fixed timeline broke whenever the menus
+took longer (they fall back to the intro after a few idle seconds).
 
 Windows x64/MSVC build only. The internal counter is resolved from this exe's
 linker map; its struct prefix mirrors nv2a_pb_exec.c and is checked against
@@ -67,8 +67,10 @@ k = c.WinDLL('kernel32', use_last_error=True)
 k.ReadProcessMemory.argtypes = [c.c_void_p, c.c_void_p, c.c_void_p, c.c_size_t, c.c_void_p]
 k.GetProcessTimes.argtypes = [c.c_void_p] + [c.c_void_p] * 4
 
-pad = ','.join(s for s in boot.PAD.split(',') if int(s.split(':')[0]) < 80000)
-CARBON = 'c1\\CRB_1a\\CRB_1a.ddf'
+spec = importlib.util.spec_from_file_location('menu_nav', root / 'tools/menu_nav.py')
+menu_nav = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(menu_nav)
+pad = ''
 combat = []
 if a.combat_after:
     # The same route as playtest_session --combat-repro, starting 5 s after
@@ -99,9 +101,7 @@ measurement_done = False
 carbon_at = None          # harness seconds when the log first shows Carbon
 measure_from = None
 measure_end = None
-next_a = 80.0
-log_pos = 0
-log_tail = ''
+nav = menu_nav.MenuNav(out / 'runtime.log')
 live = (out / 'live.txt').open('a', encoding='ascii')
 def press(line):
     live.write(line + '\n')
@@ -127,26 +127,15 @@ with (out / 'runtime.log').open('wb') as log:
     try:
         while proc.poll() is None:
             elapsed = time.perf_counter() - started
-            if carbon_at is None:
-                with (out / 'runtime.log').open('rb') as f:
-                    f.seek(log_pos)
-                    chunk = f.read().decode('latin-1')
-                    log_pos += len(chunk)
-                if CARBON in log_tail + chunk:
-                    carbon_at = elapsed
-                    measure_from = carbon_at + a.settle
-                    print('Carbon loaded at %.1fs' % carbon_at, flush=True)
-                log_tail = chunk[-200:]
-                if carbon_at is None and elapsed > a.carbon_timeout:
-                    print('Carbon did not load within %.0fs' % a.carbon_timeout,
-                          flush=True)
-                    break
-            # Keep pressing A through menus, the attract loop and the intro
-            # text until Carbon is up, then 15 s more for its intro dialog.
-            if elapsed >= next_a and (carbon_at is None or
-                                      elapsed < carbon_at + 15):
-                press('a')
-                next_a += 5
+            for button in nav.poll(elapsed):
+                press(button)
+            if carbon_at is None and nav.carbon_at is not None:
+                carbon_at = nav.carbon_at
+                measure_from = carbon_at + a.settle
+                print('Carbon loaded at %.1fs' % carbon_at, flush=True)
+            if carbon_at is None and elapsed > a.carbon_timeout:
+                print('Carbon did not load within %.0fs' % a.carbon_timeout, flush=True)
+                break
             if (measure_from is not None and elapsed >= measure_from
                     and not measurement_done):
                 samples.append(sample())
