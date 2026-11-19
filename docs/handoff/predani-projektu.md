@@ -1,5 +1,40 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- present-update -->
+## 19. 11. večer: obraz přímo z GPU, celá obrazovka, vsync
+
+`nv2a_backend_d3d11.c`: při flipu (`gb_resolve`) se zobrazovaný render
+target vykreslí do DXGI swapchainu (flip model, 2 buffery) na okně hry,
+4:3 s černými pruhy, lineární filtr (AA povrch 2x se tím zprůměruje).
+Okno se hledá podle třídy `XboxRecompFramebuffer` ve vlastním procesu
+(`FindWindowEx`), takže testy back endu nepotřebují `src/video`. Okno
+dostane vlastnost `XboxRecompGpuPresent` a přestane kreslit přes GDI.
+Proměnné: `RECOMP_GPU_PRESENT=0` (staré GDI okno), `RECOMP_VSYNC=0`,
+`RECOMP_GPU_READBACK=0` (při přímé prezentaci nekopírovat snímek zpět do
+paměti hosta; pak nejsou `latest.bmp` ani `RECOMP_GPU_SHOT_*`; výchozí 1).
+`fb_present.c`: F11 / Alt+Enter = celá obrazovka bez rámečku (Enter jde dál
+jako Start jen bez Alt), `RECOMP_FULLSCREEN=1` startuje tak; okno se otevře
+v největším celém násobku 640x480 do `RECOMP_WINDOW_SCALE` (výchozí 2), co
+se vejde (zde 125% DPI -> 800x600), dá se libovolně zvětšit; GDI cesta
+(software) taky škáluje 4:3 (HALFTONE).
+`src/game/main.c`: VEH už nehlásí jako `[EXCEPTION]` informativní výjimky
+hostitelských knihoven (0x406D1388 pojmenování vlákna -- ovladač NVIDIA při
+vytvoření swapchainu, 0x40010006/0x4001000A OutputDebugString, 0xE06D7363
+C++ výjimky ovladačů/zvuku). Dřívější 2x 0xE06D7363 na Intel grafice
+(`pb-verify-newpc`) byly nejspíš tohle.
+Nový `tools/window_smoke.py`: spustí hru s oknem, snímá skutečnou obrazovku
+(BitBlt z desktopu), pošle F11 a snímá znovu.
+Ověření: `build/present-smoke2` (readback 1) a `present-smoke3`
+(readback 0): okno 800x600 i celá obrazovka 1920x1080 správně, 0 chyb;
+testy back endu (raster batch 3, surface hazard 2, guard band, ffp
+backend, fb_present_dump 5) prošly; benchmark bez okna `present-bench2`
+133.2 FPS, vše OK (EXE `bdda121c…`).
+**Fronta:** úlohy volané přes `call` sdílí prostředí okna fronty --
+`set` bez `setlocal` (např. `RECOMP_FPS_LIMIT=60` z `17-bar-pansy.cmd`)
+zůstane pro všechny další úlohy (`present-bench1` proto 60.0 FPS). Úlohy
+začínat `setlocal`; benchmark si `RECOMP_FPS_LIMIT` nyní sám maže.
+<!-- /present-update -->
+
 <!-- bar-pansy-update -->
 ## 19. 11. večer: boj v baru na Pansy (`build/bar-pansy-01`, 563 s, GPU 60 FPS)
 

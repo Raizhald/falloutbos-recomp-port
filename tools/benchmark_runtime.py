@@ -89,7 +89,7 @@ env = dict(os.environ, RECOMP_PB_EXEC='1', RECOMP_AUDIO_MUTE='1',
            RECOMP_SAVE_DIR=str(out / 'test-saves'),
            RECOMP_FB_PRESENT_DUMP=str(out / 'latest.bmp'),
            RECOMP_FB_PRESENT_DUMP_EVERY='120')
-for name in ('FBOS_PROFILE', 'RECOMP_FB_WINDOW', 'RECOMP_KEYBOARD',
+for name in ('FBOS_PROFILE', 'RECOMP_FB_WINDOW', 'RECOMP_KEYBOARD', 'RECOMP_FPS_LIMIT',
              'RECOMP_FB_DUMP', 'RECOMP_FB_VA', 'RECOMP_RASTER_THREADS'):
     env.pop(name, None)
 if a.threads is not None:

@@ -295,6 +295,14 @@ static LONG CALLBACK veh_handler(PEXCEPTION_POINTERS ep)
     /* Anything fatal that is not an access violation, named once. Without
      * this a stack overflow or illegal instruction just ends the process,
      * which reads like a clean exit in a log. */
+    /* First-chance exceptions that host libraries raise and handle
+     * themselves: thread naming (drivers name their threads when a swap
+     * chain is made), OutputDebugString, and C++ exceptions (the game is C;
+     * these come from drivers/audio stacks, which catch them). An uncaught
+     * one still ends the process, which the log shows anyway. */
+    if (er->ExceptionCode == 0x406D1388u || er->ExceptionCode == 0x40010006u ||
+        er->ExceptionCode == 0x4001000Au || er->ExceptionCode == 0xE06D7363u)
+        return EXCEPTION_CONTINUE_SEARCH;
     if (er->ExceptionCode != EXCEPTION_ACCESS_VIOLATION) {
         if (others++ < 4) {
             fprintf(stderr, "\n[EXCEPTION] code 0x%08lX at %p on thread %lu\n",
