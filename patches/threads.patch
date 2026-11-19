@@ -1,0 +1,27 @@
+diff -ruN a/src/kernel/nv2a_pb_exec.c b/src/kernel/nv2a_pb_exec.c
+--- a/src/kernel/nv2a_pb_exec.c	2026-11-19 10:20:33.878548591 +0000
++++ b/src/kernel/nv2a_pb_exec.c	2026-11-19 10:20:33.899548591 +0000
+@@ -2529,7 +2529,13 @@
+  * Pixel statistics are private to each worker and merged after a drain.
+  * The job counters are 32-bit and
+  * wrap after about four days of continuous drawing. */
+-#define NV_RASTER_MAX_THREADS 16
++/* Up to 32 workers with RECOMP_RASTER_THREADS. The default is cores - 4,
++ * at most NV_RASTER_DEFAULT_MAX: on a 16-core / 32-thread Ryzen 9 5900XT,
++ * Fallout: BoS measured 33.5 / 30.6 FPS with 16 workers, 37.0 / 37.8 with
++ * 24 and 32.5 / 38.4 with 28 (28 stalls at times: it leaves too few
++ * threads for the title, the executor and audio). */
++#define NV_RASTER_MAX_THREADS 32
++#define NV_RASTER_DEFAULT_MAX 24
+ /* Jobs in flight between the executor and the slowest worker. The executor
+  * stalls when the ring is full, and a level is hundreds of small batches a
+  * frame, so the ring size is a knob: RECOMP_PIPE_JOBS=<2..64>, default 32
+@@ -2675,6 +2681,8 @@
+     e = getenv("RECOMP_RASTER_THREADS");
+     GetSystemInfo(&si);
+     n = e ? atoi(e) : (int)si.dwNumberOfProcessors - 4;
++    if (!e && n > NV_RASTER_DEFAULT_MAX)
++        n = NV_RASTER_DEFAULT_MAX;
+     if (n > NV_RASTER_MAX_THREADS)
+         n = NV_RASTER_MAX_THREADS;
+     if (n <= 1)

@@ -1,0 +1,170 @@
+diff --git a/src/kernel/nv2a_pb_exec.c b/src/kernel/nv2a_pb_exec.c
+index 6503602..dd1aa19 100644
+--- a/src/kernel/nv2a_pb_exec.c
++++ b/src/kernel/nv2a_pb_exec.c
+@@ -265,6 +265,12 @@ typedef struct {
+     int      valid;
+ } Texture;
+ 
++typedef struct { uint64_t pixels; uint32_t pixel_max; } PixelStats;
++/* Workers accumulate diagnostics privately; the executor merges at a drain.
++ * Updating s_gpu.pixels from every row owner was both a race and a shared
++ * cache-line write on every pixel. Non-worker paths still update s_gpu. */
++static NV_TLS PixelStats *t_pixel_stats;
++
+ static struct {
+     VertexAttr attr[NV_VERTEX_ATTRS];
+     uint32_t   prim;                    /* SET_BEGIN_END parameter, 0 = ended */
+@@ -1394,9 +1400,15 @@ static void put_pixel(uint8_t *mem, uint32_t bpp, int x, int y, uint32_t argb)
+         return;
+     if (y < (int)RS.clip_y || y >= (int)(RS.clip_y + RS.clip_h))
+         return;
+-    s_gpu.pixels++;
+-    if ((argb & 0x00FFFFFFu) > (s_gpu.pixel_max & 0x00FFFFFFu))
+-        s_gpu.pixel_max = argb;
++    if (t_pixel_stats) {
++        t_pixel_stats->pixels++;
++        if ((argb & 0x00FFFFFFu) > (t_pixel_stats->pixel_max & 0x00FFFFFFu))
++            t_pixel_stats->pixel_max = argb;
++    } else {
++        s_gpu.pixels++;
++        if ((argb & 0x00FFFFFFu) > (s_gpu.pixel_max & 0x00FFFFFFu))
++            s_gpu.pixel_max = argb;
++    }
+     row = RS.surface + (size_t)y * RS.pitch;
+ 
+     /* Blending, with the GL factor set and equations the NV2A takes.
+@@ -2415,8 +2427,8 @@ static void xf_rows(const XfTri *T, int y0, int step, XfCount *cnt)
+  * RECOMP_RASTER_THREADS=<n> sets the worker count (1 = none: the executor
+  * draws each batch itself); the default leaves a few cores for the title and
+  * the host.
+- * ponytail: s_gpu.pixels/pixel_max in put_pixel are unsynchronised stats and
+- * may undercount; nothing depends on them. The job counters are 32-bit and
++ * Pixel statistics are private to each worker and merged after a drain.
++ * The job counters are 32-bit and
+  * wrap after about four days of continuous drawing. */
+ #define NV_RASTER_MAX_THREADS 16
+ #define NV_PIPE_JOBS 8
+@@ -2441,13 +2453,28 @@ typedef LONG pipe_count;
+ #else
+ typedef long pipe_count;
+ #endif
++
++/* Each worker writes its counters for every shaded/depth-tested pixel. Keep
++ * them off its neighbours' cache lines: the old 24-byte counter array made
++ * independent rows contend for the same lines on multicore CPUs. The tail
++ * belongs to the same worker and must also stay clear of the producer head. */
++#if defined(_MSC_VER)
++#define NV_WORKER_ALIGN __declspec(align(64))
++#else
++#define NV_WORKER_ALIGN __attribute__((aligned(64)))
++#endif
++typedef struct NV_WORKER_ALIGN {
++    volatile pipe_count tail;
++    XfCount cnt;
++    PixelStats pixels;
++} RasterWorker;
++
+ static struct {
+     int n;                                      /* workers; 0 = the executor draws */
+     RasterJob job[NV_PIPE_JOBS];
+     volatile pipe_count head;                   /* jobs published */
+     pipe_count drained;                         /* head at the last drain */
+-    volatile pipe_count tail[NV_RASTER_MAX_THREADS];  /* jobs worker k has drawn */
+-    XfCount cnt[NV_RASTER_MAX_THREADS];         /* worker k's counts, since the drain */
++    RasterWorker worker[NV_RASTER_MAX_THREADS];  /* one cache line per worker */
+ } s_pipe;
+ static int s_xfq_n;                             /* triangles in the job being filled */
+ 
+@@ -2469,6 +2496,7 @@ static DWORD WINAPI raster_worker(LPVOID arg)
+ {
+     int k = (int)(intptr_t)arg;
+     LONG j = 0;
++    t_pixel_stats = &s_pipe.worker[k].pixels;
+     for (;;) {
+         RasterJob *J;
+         int spins = 0;
+@@ -2480,9 +2508,9 @@ static DWORD WINAPI raster_worker(LPVOID arg)
+         }
+         J = &s_pipe.job[j % NV_PIPE_JOBS];
+         t_rs = &J->rs;
+-        xf_rows_owned(J->q, J->n, k, s_pipe.n, &s_pipe.cnt[k]);
+-        InterlockedExchange(&s_pipe.tail[k], ++j);
+-        WakeByAddressAll((PVOID)&s_pipe.tail[k]);   /* free when nobody waits */
++        xf_rows_owned(J->q, J->n, k, s_pipe.n, &s_pipe.worker[k].cnt);
++        InterlockedExchange(&s_pipe.worker[k].tail, ++j);
++        WakeByAddressAll((PVOID)&s_pipe.worker[k].tail);   /* free when nobody waits */
+     }
+     return 0;
+ }
+@@ -2517,11 +2545,11 @@ static void pipe_wait(LONG upto)
+     for (k = 0; k < s_pipe.n; k++) {
+         int spins = 0;
+         LONG t;
+-        while ((t = s_pipe.tail[k]) < upto) {
++        while ((t = s_pipe.worker[k].tail) < upto) {
+             if (++spins < NV_RASTER_SPIN)
+                 YieldProcessor();
+             else
+-                WaitOnAddress(&s_pipe.tail[k], &t, sizeof t, INFINITE);
++                WaitOnAddress(&s_pipe.worker[k].tail, &t, sizeof t, INFINITE);
+         }
+     }
+ }
+@@ -2539,10 +2567,15 @@ static void pipe_drain(void)
+         return;
+     pipe_wait(s_pipe.head);
+     for (k = 0; k < s_pipe.n; k++) {
+-        s_gpu.xf_depth_fail += s_pipe.cnt[k].depth_fail;
+-        s_gpu.xf_pixels += s_pipe.cnt[k].pixels;
+-        s_gpu.zpass_count += s_pipe.cnt[k].zpass;
+-        memset(&s_pipe.cnt[k], 0, sizeof s_pipe.cnt[k]);
++        s_gpu.xf_depth_fail += s_pipe.worker[k].cnt.depth_fail;
++        s_gpu.xf_pixels += s_pipe.worker[k].cnt.pixels;
++        s_gpu.zpass_count += s_pipe.worker[k].cnt.zpass;
++        memset(&s_pipe.worker[k].cnt, 0, sizeof s_pipe.worker[k].cnt);
++        s_gpu.pixels += s_pipe.worker[k].pixels.pixels;
++        if ((s_pipe.worker[k].pixels.pixel_max & 0x00FFFFFFu)
++                > (s_gpu.pixel_max & 0x00FFFFFFu))
++            s_gpu.pixel_max = s_pipe.worker[k].pixels.pixel_max;
++        memset(&s_pipe.worker[k].pixels, 0, sizeof s_pipe.worker[k].pixels);
+     }
+     s_pipe.drained = s_pipe.head;
+ }
+diff --git a/tests/nv2a_raster_batch/CMakeLists.txt b/tests/nv2a_raster_batch/CMakeLists.txt
+index dae6e6c..5ed3cb7 100644
+--- a/tests/nv2a_raster_batch/CMakeLists.txt
++++ b/tests/nv2a_raster_batch/CMakeLists.txt
+@@ -12,3 +12,5 @@ elseif(NOT WIN32)
+     target_link_libraries(nv2a-raster-batch-test PRIVATE m pthread)
+ endif()
+ add_test(NAME nv2a-raster-batch COMMAND nv2a-raster-batch-test)
++add_test(NAME nv2a-raster-batch-single COMMAND nv2a-raster-batch-test 1)
++add_test(NAME nv2a-raster-batch-sixteen COMMAND nv2a-raster-batch-test 16)
+diff --git a/tests/nv2a_raster_batch/nv2a_raster_batch_test.c b/tests/nv2a_raster_batch/nv2a_raster_batch_test.c
+index e0de3ee..3c21644 100644
+--- a/tests/nv2a_raster_batch/nv2a_raster_batch_test.c
++++ b/tests/nv2a_raster_batch/nv2a_raster_batch_test.c
+@@ -94,16 +94,19 @@ static void put_vertex(uint32_t n, float x, float y, uint32_t c)
+     memcpy(s_mem + DIFF_AT + 4u * n, &c, 4);
+ }
+ 
+-int main(void)
++int main(int argc, char **argv)
+ {
+     static const float I[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
+     uint32_t n = 0, start;
+     int i, x, y, bad = 0, drawn = 0;
++    const char *threads = argc > 1 ? argv[1] : "4";
++    if (atoi(threads) < 1 || atoi(threads) > 16)
++        return 2;
+ 
+ #ifdef _WIN32
+-    _putenv("RECOMP_RASTER_THREADS=4");
++    _putenv_s("RECOMP_RASTER_THREADS", threads);
+ #else
+-    setenv("RECOMP_RASTER_THREADS", "4", 1);
++    setenv("RECOMP_RASTER_THREADS", threads, 1);
+ #endif
+ 
+     m(0x0208, 0x0008);                       /* SET_SURFACE_FORMAT: A8R8G8B8, no AA */

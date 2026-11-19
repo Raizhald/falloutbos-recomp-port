@@ -1,0 +1,66 @@
+diff -ruN a/src/kernel/nv2a_pb_exec.c b/src/kernel/nv2a_pb_exec.c
+--- a/src/kernel/nv2a_pb_exec.c	2026-11-18 22:45:22.076997981 +0000
++++ b/src/kernel/nv2a_pb_exec.c	2026-11-18 22:45:22.093997981 +0000
+@@ -2204,8 +2204,28 @@
+     vs[0] = wrap_coord((uint32_t)iv, t->height, t->addr_v);
+     vs[1] = wrap_coord((uint32_t)(iv + 1), t->height, t->addr_v);
+     p = (const uint8_t *)xbox_GetMemoryOffset() + t->offset + face_offset;
+-    for (k = 0; k < 4; k++) {
+-        uint32_t i = swizzle_offset(us[k & 1], vs[k >> 1], t->width, t->height);
++    {
++        /* For power-of-two sizes a Morton offset is an X part OR'd with a Y
++         * part (swizzle_offset's own fast path, split by axis), so two of
++         * each serve all four texels. Other sizes take swizzle_offset. */
++        uint32_t w = t->width, h = t->height, ox[2], oy[2], pow2;
++        pow2 = w && h && w <= 0x10000u && h <= 0x10000u
++            && !(w & (w - 1u)) && !(h & (h - 1u));
++        if (pow2) {
++            uint32_t minor = w < h ? w : h, low = minor - 1u, shift = 0, a;
++            while ((minor >> shift) > 1u)
++                shift++;
++            for (a = 0; a < 2; a++) {
++                uint32_t x = us[a] & (w - 1u), y = vs[a] & (h - 1u);
++                ox[a] = swizzle_spread(x & low)
++                      | (w > h ? (x & ~low) << shift : 0u);
++                oy[a] = (swizzle_spread(y & low) << 1)
++                      | (w > h ? 0u : (y & ~low) << shift);
++            }
++        }
++        for (k = 0; k < 4; k++) {
++            uint32_t i = pow2 ? (ox[k & 1] | oy[k >> 1])
++                              : swizzle_offset(us[k & 1], vs[k >> 1], w, h);
+         if (fmt == 0x0B)
+             texel[k] = ((const uint32_t *)((const uint8_t *)xbox_GetMemoryOffset()
+                                            + t->palette))[p[i]];
+@@ -2213,10 +2233,22 @@
+             texel[k] = ((const uint32_t *)p)[i];
+         else
+             texel[k] = ((const uint32_t *)p)[i] | 0xFF000000u;
++        }
+     }
+     return 1;
+ }
+ 
++/* (int32_t)floorf(f) without the library call: truncate, then step down
++ * for negative non-integers. Where the cast saturates (NaN, |f| >= 2^31) it
++ * leaves the same INT32_MIN the original expression produced on x86. */
++static int32_t floor_i32(float f)
++{
++    int32_t i = (int32_t)f;
++    if (i != INT32_MIN && (float)i > f)
++        i--;
++    return i;
++}
++
+ static void rc_texel(const Texture *t, uint32_t face, float u, float v,
+                      float out[4])
+ {
+@@ -2233,7 +2265,7 @@
+      * Add LOD from the screen-space derivative when that shows. */
+     if (mag == 2 || min == 2 || min == 4 || min == 6) {
+         float fu = u - 0.5f, fv = v - 0.5f, wu, wv, c[4][4];
+-        int32_t iu = (int32_t)floorf(fu), iv = (int32_t)floorf(fv), k, j;
++        int32_t iu = floor_i32(fu), iv = floor_i32(fv), k, j;
+         wu = fu - (float)iu;
+         wv = fv - (float)iv;
+         {

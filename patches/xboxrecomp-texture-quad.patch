@@ -1,0 +1,87 @@
+diff -ruN a/src/kernel/nv2a_pb_exec.c b/src/kernel/nv2a_pb_exec.c
+--- a/src/kernel/nv2a_pb_exec.c	2026-11-18 22:28:58.367984995 +0000
++++ b/src/kernel/nv2a_pb_exec.c	2026-11-18 22:28:58.379984995 +0000
+@@ -2167,6 +2167,56 @@
+ /* One texel at normalised (swizzled/DXT) or texel (linear) coordinates, as
+  * floats. An unusable stage reads white, so a missing texture multiplies
+  * through instead of blacking the pixel out. */
++/* n / 255.0f, the values nv2a_rc_unpack gives, local so it inlines. */
++static float s_texel_unorm[256];
++
++static void texel_unpack(uint32_t c, float o[4])
++{
++    if (s_texel_unorm[255] == 0.0f) {          /* first use; idempotent */
++        int i;
++        for (i = 0; i < 256; i++)
++            s_texel_unorm[i] = (float)i / 255.0f;
++    }
++    o[0] = s_texel_unorm[(c >> 16) & 0xFF];
++    o[1] = s_texel_unorm[(c >>  8) & 0xFF];
++    o[2] = s_texel_unorm[ c        & 0xFF];
++    o[3] = s_texel_unorm[ c >> 24        ];
++}
++
++/* The four texels of a bilinear tap, (iu, iv) to (iu + 1, iv + 1), in the
++ * order rc_texel blends them -- for the swizzled formats a scene is made of
++ * (paletted P8, A8R8G8B8, X8R8G8B8). Four sample_tex calls decided the format,
++ * checked for DXT and wrapped both coordinates once per texel; here that is
++ * done once per tap and each axis wraps twice. Same texels as sample_tex,
++ * bit for bit. Returns 0 for anything else, and the caller falls back. */
++static int sample_quad(const Texture *t, uint32_t face_offset, int32_t iu,
++                       int32_t iv, uint32_t texel[4])
++{
++    const uint8_t *p;
++    uint32_t us[2], vs[2], fmt = t->color, k;
++
++    if (!t->valid || (fmt != 0x0B && fmt != 0x06 && fmt != 0x07))
++        return 0;
++    if (fmt == 0x0B && !t->palette)
++        return 0;
++    us[0] = wrap_coord((uint32_t)iu, t->width, t->addr_u);
++    us[1] = wrap_coord((uint32_t)(iu + 1), t->width, t->addr_u);
++    vs[0] = wrap_coord((uint32_t)iv, t->height, t->addr_v);
++    vs[1] = wrap_coord((uint32_t)(iv + 1), t->height, t->addr_v);
++    p = (const uint8_t *)xbox_GetMemoryOffset() + t->offset + face_offset;
++    for (k = 0; k < 4; k++) {
++        uint32_t i = swizzle_offset(us[k & 1], vs[k >> 1], t->width, t->height);
++        if (fmt == 0x0B)
++            texel[k] = ((const uint32_t *)((const uint8_t *)xbox_GetMemoryOffset()
++                                           + t->palette))[p[i]];
++        else if (fmt == 0x06)
++            texel[k] = ((const uint32_t *)p)[i];
++        else
++            texel[k] = ((const uint32_t *)p)[i] | 0xFF000000u;
++    }
++    return 1;
++}
++
+ static void rc_texel(const Texture *t, uint32_t face, float u, float v,
+                      float out[4])
+ {
+@@ -2186,12 +2236,20 @@
+         int32_t iu = (int32_t)floorf(fu), iv = (int32_t)floorf(fv), k, j;
+         wu = fu - (float)iu;
+         wv = fv - (float)iv;
+-        for (k = 0; k < 4; k++) {
+-            if (sample_tex(t, face, (uint32_t)(iu + (k & 1)),
+-                           (uint32_t)(iv + (k >> 1)), &texel))
+-                nv2a_rc_unpack(texel, c[k]);
+-            else
+-                c[k][0] = c[k][1] = c[k][2] = c[k][3] = 1.0f;
++        {
++            uint32_t q[4];
++            if (sample_quad(t, face, iu, iv, q)) {
++                for (k = 0; k < 4; k++)
++                    texel_unpack(q[k], c[k]);
++            } else {
++                for (k = 0; k < 4; k++) {
++                    if (sample_tex(t, face, (uint32_t)(iu + (k & 1)),
++                                   (uint32_t)(iv + (k >> 1)), &texel))
++                        nv2a_rc_unpack(texel, c[k]);
++                    else
++                        c[k][0] = c[k][1] = c[k][2] = c[k][3] = 1.0f;
++                }
++            }
+         }
+         for (j = 0; j < 4; j++)
+             out[j] = (c[0][j] * (1.0f - wu) + c[1][j] * wu) * (1.0f - wv)

@@ -1,0 +1,212 @@
+diff -ruN a/src/kernel/nv2a_pb_exec.c b/src/kernel/nv2a_pb_exec.c
+--- a/src/kernel/nv2a_pb_exec.c	2026-11-19 09:51:24.503525498 +0000
++++ b/src/kernel/nv2a_pb_exec.c	2026-11-19 09:51:24.517525498 +0000
+@@ -3230,15 +3230,48 @@
+     s_xf_o[2] = of[2];
+ }
+ 
++/* Post-transform cache for one batch. Indexed meshes name each vertex
++ * several times; transforming it again gives the same result -- the
++ * program starts from cleared registers, and within a batch its inputs
++ * (attributes in guest memory, constants, the program) do not change --
++ * unless the program may write c[] (CXT_WRITE_EN), when the cache is off.
++ * Direct-mapped by index; a collision just transforms again. */
++#define XF_VCACHE 4096
++static struct { uint32_t index, pos, gen; } s_vcache[XF_VCACHE];
++static uint32_t s_vcache_gen;
++static uint32_t s_vcache_hits, s_vcache_runs;      /* for the [PIPE] report */
++
+ static void raster_batch_program(void)
+ {
+     uint32_t i, n = s_gpu.idx_count;
++    static int off = -1;
++    int cache;
++
++    if (off < 0)
++        off = getenv("RECOMP_NO_VCACHE") != NULL;      /* for A/B and tests */
++    cache = !off && !nv2a_vsh_cxt_write_enabled();
+ 
+     if (!s_xf && !(s_xf = (Nv2aVshOutput *)calloc(NV_MAX_INDICES, sizeof *s_xf)))
+         return;
+-    for (i = 0; i < n; i++)
+-        if (!transform_vertex(s_gpu.idx[i], &s_xf[i]))
++    if (++s_vcache_gen == 0) {                         /* wrapped: forget all */
++        memset(s_vcache, 0, sizeof s_vcache);
++        s_vcache_gen = 1;
++    }
++    for (i = 0; i < n; i++) {
++        uint32_t idx = s_gpu.idx[i], slot = (idx ^ (idx >> 12)) & (XF_VCACHE - 1);
++        if (cache && s_vcache[slot].gen == s_vcache_gen
++            && s_vcache[slot].index == idx) {
++            s_xf[i] = s_xf[s_vcache[slot].pos];
++            s_vcache_hits++;
++            continue;
++        }
++        if (!transform_vertex(idx, &s_xf[i]))
+             return;                                    /* no program loaded */
++        s_vcache_runs++;
++        s_vcache[slot].index = idx;
++        s_vcache[slot].pos = i;
++        s_vcache[slot].gen = s_vcache_gen;
++    }
+     xf_set_viewport();
+     {
+         const VertexAttr *tc = texcoord_attr();
+@@ -4646,6 +4679,9 @@
+                     s_pstat.method_report, s_pstat.method_semclear,
+                     s_pstat.drain_exec, s_pstat.drain_report, s_pstat.drain_hazard,
+                     s_pipe.n ? 100.0 * idle / (span * s_pipe.n) : 0.0);
++            fprintf(stderr, "[PIPE] vertices: %u transformed, %u from the"
++                    " batch cache\n", s_vcache_runs, s_vcache_hits);
++            s_vcache_runs = s_vcache_hits = 0;
+             {
+                 int a, b;                 /* top drain methods, most first */
+                 fprintf(stderr, "[PIPE] drains by method (subch:method x n):");
+diff -ruN a/src/kernel/nv2a_vsh_interp.c b/src/kernel/nv2a_vsh_interp.c
+--- a/src/kernel/nv2a_vsh_interp.c	2026-11-19 09:51:24.505525498 +0000
++++ b/src/kernel/nv2a_vsh_interp.c	2026-11-19 09:51:24.523525499 +0000
+@@ -92,6 +92,7 @@
+ 
+ void nv2a_vsh_set_start_slot(uint32_t slot) { s_start_slot = slot; }
+ void nv2a_vsh_set_cxt_write(uint32_t enable) { s_cxt_write = enable; }
++int nv2a_vsh_cxt_write_enabled(void) { return s_cxt_write != 0; }
+ 
+ void nv2a_vsh_set_constant_load(uint32_t index)
+ {
+diff -ruN a/src/kernel/nv2a_vsh_interp.h b/src/kernel/nv2a_vsh_interp.h
+--- a/src/kernel/nv2a_vsh_interp.h	2026-11-19 09:51:24.506525498 +0000
++++ b/src/kernel/nv2a_vsh_interp.h	2026-11-19 09:51:24.529525499 +0000
+@@ -43,6 +43,9 @@
+ void nv2a_vsh_set_constant_load(uint32_t index);      /* _CONSTANT_LOAD     */
+ void nv2a_vsh_constant_word(uint32_t word);           /* _CONSTANT(i)       */
+ void nv2a_vsh_set_cxt_write(uint32_t enable);         /* _CXT_WRITE_EN      */
++/* Whether a program may write c[] (CXT_WRITE_EN): then a vertex's result can
++ * depend on the vertices run before it. */
++int nv2a_vsh_cxt_write_enabled(void);
+ 
+ /* Run the program from the start slot on one vertex. Inputs are the ten
+  * attribute values as floats. Returns 0 if there is no program to run (no
+diff -ruN a/tests/nv2a_vertex_cache/CMakeLists.txt b/tests/nv2a_vertex_cache/CMakeLists.txt
+--- a/tests/nv2a_vertex_cache/CMakeLists.txt	1970-01-01 00:00:00.000000000 +0000
++++ b/tests/nv2a_vertex_cache/CMakeLists.txt	2026-11-19 09:51:24.542525499 +0000
+@@ -0,0 +1,14 @@
++cmake_minimum_required(VERSION 3.20)
++project(nv2a_vertex_cache_regression C)
++enable_testing()
++add_executable(nv2a-vertex-cache-test nv2a_vertex_cache_test.c
++    ../../src/kernel/nv2a_pb_exec.c
++    ../../src/kernel/nv2a_vsh_interp.c
++    ../../src/kernel/nv2a_combiner.c)
++target_include_directories(nv2a-vertex-cache-test PRIVATE ../../src/kernel ../../src)
++if(MSVC)
++    target_compile_definitions(nv2a-vertex-cache-test PRIVATE _CRT_SECURE_NO_WARNINGS)
++elseif(NOT WIN32)
++    target_link_libraries(nv2a-vertex-cache-test PRIVATE m pthread)
++endif()
++add_test(NAME nv2a-vertex-cache COMMAND nv2a-vertex-cache-test)
+diff -ruN a/tests/nv2a_vertex_cache/nv2a_vertex_cache_test.c b/tests/nv2a_vertex_cache/nv2a_vertex_cache_test.c
+--- a/tests/nv2a_vertex_cache/nv2a_vertex_cache_test.c	1970-01-01 00:00:00.000000000 +0000
++++ b/tests/nv2a_vertex_cache/nv2a_vertex_cache_test.c	2026-11-19 09:51:24.548525499 +0000
+@@ -0,0 +1,102 @@
++/* The post-transform vertex cache (raster_batch_program) must not change
++ * a pixel. An indexed batch names every vertex of a grid of quads several
++ * times; drawn once with the cache and once with RECOMP_NO_VCACHE, the two
++ * surfaces must be identical (the test writes the surface; compare two
++ * runs). Harness as tests/nv2a_raster_batch. */
++#include <stddef.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include "nv2a_backend.h"
++
++#define W 256
++#define H 256
++#define COLOR_AT 0x10000u
++#define POS_AT   0x60000u
++#define DIFF_AT  0x70000u
++#define MEM_BYTES 0x80000u
++static uint8_t s_mem[MEM_BYTES];
++
++/* ---- what the executor expects the runtime to provide ------------------ */
++ptrdiff_t xbox_GetMemoryOffset(void) { return (ptrdiff_t)s_mem; }
++uint32_t g_xbox_image_lo, g_xbox_image_hi;
++uint32_t g_xbox_stack_base, g_xbox_stack_size;
++uint32_t xbox_ContiguousAllocatedBytes(void) { return 0; }
++void xbox_FramebufferWindowSet(uint32_t va, uint32_t pitch) { (void)va; (void)pitch; }
++void xbox_FramebufferWindowSetAA(uint32_t sy) { (void)sy; }
++uint32_t xbox_Nv2aFenceWordVa(void) { return 0; }
++int nv2a_pb_dma_walk(void) { return 1; }
++void xbox_FramebufferWindowStart(void) {}
++void xbox_FramebufferWindowFrameStats(uint32_t draws) { (void)draws; }
++void xbox_FramebufferWindowPresent(uint32_t va, uint32_t pitch) { (void)va; (void)pitch; }
++void xbox_Nv2aFrameCounterFlip(void) {}
++volatile uint32_t *xbox_Nv2aRegPtr(uint32_t offset) { (void)offset; return NULL; }
++
++extern void nv2a_pb_exec_method(uint32_t subch, uint32_t method, uint32_t param);
++extern void nv2a_pb_exec_sync(void);
++static void m(uint32_t method, uint32_t param) { nv2a_pb_exec_method(0, method, param); }
++static uint32_t f2u(float f) { uint32_t u; memcpy(&u, &f, 4); return u; }
++static void mf(uint32_t method, float f) { m(method, f2u(f)); }
++
++
++static void put_vertex(uint32_t n, float x, float y, uint32_t c)
++{
++    float p[3] = { x, y, 0.0f };
++    memcpy(s_mem + POS_AT + 12u * n, p, 12);
++    memcpy(s_mem + DIFF_AT + 4u * n, &c, 4);
++}
++
++static uint8_t s_first[W * H * 4];
++
++static void frame(void)
++{
++    static const float I[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
++    uint32_t i, x, y, idx[6 * 15 * 15], n = 0;
++
++    memset(s_mem + COLOR_AT, 0, W * H * 4);
++    m(0x0208, 0x0008); m(0x0200, (uint32_t)W << 16); m(0x0204, (uint32_t)H << 16);
++    m(0x020C, W * 4);  m(0x0210, COLOR_AT);
++    for (i = 0; i < 16; i++)
++        mf(0x0680 + 4 * i, I[i]);
++    m(0x1E94, 0);
++    /* 16 x 16 shared grid vertices, each with its own colour */
++    for (y = 0; y < 16; y++)
++        for (x = 0; x < 16; x++)
++            put_vertex(y * 16 + x, (float)x * 16.0f + (float)(y & 1),
++                       (float)y * 16.0f, 0xFF000000u | (x * 16u << 16) | (y * 16u << 8) | ((x ^ y) * 8u));
++    m(0x1720, POS_AT);  m(0x1760, 2 | (3 << 4) | (12 << 8));
++    m(0x172C, DIFF_AT); m(0x176C, 0 | (4 << 4) | (4 << 8));
++    for (y = 0; y < 15; y++)
++        for (x = 0; x < 15; x++) {
++            uint32_t a = y * 16 + x;
++            idx[n++] = a; idx[n++] = a + 1; idx[n++] = a + 17;
++            idx[n++] = a; idx[n++] = a + 17; idx[n++] = a + 16;
++        }
++    m(0x17FC, 5);
++    for (i = 0; i + 1 < n; i += 2)
++        m(0x1800, idx[i] | idx[i + 1] << 16);          /* ARRAY_ELEMENT16 */
++    m(0x17FC, 0);
++    nv2a_pb_exec_sync();
++}
++
++int main(void)
++{
++    /* Writes the surface to VCACHE_OUT (default vcache.bin). Run twice, once
++     * with RECOMP_NO_VCACHE=1, and compare the files byte for byte. */
++    const char *path = getenv("VCACHE_OUT") ? getenv("VCACHE_OUT") : "vcache.bin";
++    int drawn = 0, k;
++    FILE *f;
++
++    frame();
++    memcpy(s_first, s_mem + COLOR_AT, sizeof s_first);
++    for (k = 0; k < W * H; k++)
++        if (s_first[4 * k] | s_first[4 * k + 1] | s_first[4 * k + 2])
++            drawn++;
++    printf("%s: %d pixels drawn\n", getenv("RECOMP_NO_VCACHE") ? "uncached" : "cached", drawn);
++    if (!(f = fopen(path, "wb")))
++        return 2;
++    fwrite(s_first, 1, sizeof s_first, f);
++    fclose(f);
++    return drawn > 40000 ? 0 : 1;
++}
