@@ -1,5 +1,24 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- harness-update -->
+## 19. 11. večer: benchmark řízený stavem hry (oprava nestabilního testu)
+
+`tools/benchmark_runtime.py` už neměří v pevné 125. sekundě. Pevný plán
+ovladače zůstal jen do 80 s (Start + menu); potom harness přes
+`RECOMP_PAD_LIVE` mačká A každých 5 s, dokud log neukáže
+`c1\CRB_1a\CRB_1a.ddf`, a ještě 15 s (úvodní dialog Carbonu). Měření
+začíná `--settle` (výchozí 18 s) po načtení Carbonu; `--combat-after`
+posílá stejnou trasu živě, 5 s po konci měření. `--carbon-timeout`
+(300 s) ukončí běh, když se Carbon nenačte. `--start` zrušeno. V
+`result.json` nově `carbon_loaded_at` a `measurement_started_at`.
+Příčina dřívějších selhání (`pb-verify-newpc4/5`): menu se vrátilo do
+attract smyčky, po 120 s už nikdo nemačkal a Carbon se načetl až ~170 s.
+Ověření: `build/harness-fix1` 134.4 FPS (Carbon 105.4 s) a `harness-fix2`
+106.6 FPS (Carbon 105.5 s), oba vše OK včetně baru. Rozptyl FPS mezi běhy
+(~105 vs ~135, viděn i dříve) je nejspíš teplota/napájecí režim notebooku;
+pro A/B srovnání střídat běhy a brát víc vzorků.
+<!-- /harness-update -->
+
 <!-- newpc-update -->
 ## 19. 11. večer: nový počítač (notebook) -- výběr výkonné grafiky
 
