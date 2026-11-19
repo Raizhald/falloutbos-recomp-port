@@ -1,5 +1,36 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- bink-update -->
+## 19. 11. večer: rozbité pixely ve videích (Bink) -- stav vyšetřování
+
+Příznak: v Bink videích (intro, pozadí menu, výběr postavy) rozházené bloky
+~8x8 s vysokofrekvenčním vzorem a přesycenými barvami
+(`build/artifact-zoom2.png`). Deterministické: na stejných místech v každém
+běhu, GPU i software (už `docs/boot.md`, Known issues).
+**Referenční dekodér je čistý:** `ffmpeg` (binkvideo) dekóduje
+`game/resx/Character_3.bik` (640x480, BIKi, 30 fps) bez artefaktů -> chyba je
+v rekompilovaném dekodéru, ne ve videu ani ve vykreslování.
+Zjištěno: jádro dekodéru (sekce `BINK`, 0x000C2900-0x000D005C, 123 funkcí)
+**nepoužívá MMX** -- MMX je jen v blitrech (`BINK16MX`...), takže IDCT a
+dekódování koeficientů jsou celočíselný x86 kód. MMX helpery ověřuje
+`tests/mmx_integer` proti CPU. Prověřeno a v pořádku: `sbb`/`adc` mají vždy
+nastavený CF, `neg`+`sbb`, `shrd`, `sar`; v Binku žádné `fild/fistp qword`
+kopie ani nepřeložené instrukce; DPC běží na vlákně časovače (vlastní TLS
+registry), APC jen ve waitech.
+Opraveno mimochodem (nebyla to příčina): lifter nemaskoval počet posunu u
+`shl/sal/shr reg, cl` (`esi = esi >> LO8(ecx)`, v C UB pro >= 32; `sar` už
+maskoval). `_lift_shift` nyní `& 31u` (imm maskováno při liftu), test
+`tools/recomp/test_lifter_shift_count.py`; kód přegenerován (`regen.sh`,
+log `build/regen-shiftmask.log`), EXE `3EAE714E…`, záloha
+`bin/fbos-before-shiftmask.exe`, `build/gen-before-shiftmask/`. Artefakty
+po regeneraci na stejných místech (`build/shiftmask-smoke`).
+Další postup: diferenciálně -- vypsat z běžící hry dekódované YUV roviny
+Binku (adresy z volání `BinkCopyToBuffer`/blitru) pro konkrétní snímek a
+porovnat s `ffmpeg -i Character_3.bik` po blocích 8x8; první odlišný blok
+-> typ bloku (Bink 1: skip/scaled/motion/run/residue/intra/fill/inter/
+pattern/raw) -> funkce dekodéru -> instrukce.
+<!-- /bink-update -->
+
 <!-- scale-settings-update -->
 ## 19. 11. večer: vyšší rozlišení (`RECOMP_GPU_SCALE`) a nastavení pro hráče
 
