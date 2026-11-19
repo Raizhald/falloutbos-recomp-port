@@ -1,4 +1,10 @@
-"""Local interactive runtime test through the toolkit's live pad input file."""
+"""Local interactive runtime test through the toolkit's live pad input file.
+
+Fresh games follow the log rather than a fixed clock: the fixed menu presses
+run to 80 s, then A is pressed every 5 s until Carbon loads (+15 s), and the
+scripted route (written as times from 125 s, as before) is sent live from
+Carbon + 18 s. Menus that fall back to the attract loop no longer derail it.
+"""
 import importlib.util
 import argparse
 import hashlib
@@ -75,6 +81,21 @@ if args.combat_repro:
         for start in range(320000, 590000, 40000):
             pad += ',%d:back:700,%d:b:700,%d:rt+a:6000' % (
                 start, start + 4000, start + 8000)
+# Split: fixed boot/menu presses stay in the script; everything from 80 s is
+# either replaced by the follow loop (the A presses) or sent live (the route).
+follow = not args.load
+route = []
+if follow:
+    fixed = []
+    for step in pad.split(','):
+        t, rest = step.split(':', 1)
+        if int(t) < 80000:
+            fixed.append(step)
+        elif int(t) >= 125000:
+            route.append(((int(t) - 125000) / 1000.0, rest))
+    pad = ','.join(fixed)
+    route.sort(key=lambda r: r[0])
+CARBON = 'c1\\CRB_1a\\CRB_1a.ddf'
 env = dict(os.environ, RECOMP_PAD_SCRIPT=pad, RECOMP_PB_EXEC='1',
            RECOMP_AUDIO_MUTE='1',
            RECOMP_PAD_LIVE=str(capture / 'live.txt'),
@@ -88,6 +109,14 @@ executable = root / 'bin/fbos.exe'
 executable_sha256 = hashlib.sha256(executable.read_bytes()).hexdigest()
 frames = []
 next_capture = 0
+carbon_at = None
+next_a = 80.0
+log_pos = 0
+log_tail = ''
+live = (capture / 'live.txt').open('a', encoding='ascii')
+def press(line):
+    live.write(line + '\n')
+    live.flush()
 with (capture / 'runtime.log').open('wb') as log:
     process = subprocess.Popen([str(executable)], cwd=root, env=env,
                                stdout=log, stderr=subprocess.STDOUT,
@@ -98,6 +127,24 @@ with (capture / 'runtime.log').open('wb') as log:
             elapsed = time.monotonic() - started
             if elapsed >= args.seconds or (capture / 'stop.flag').exists():
                 break
+            if follow and carbon_at is None:
+                with (capture / 'runtime.log').open('rb') as f:
+                    f.seek(log_pos)
+                    chunk = f.read().decode('latin-1')
+                    log_pos += len(chunk)
+                if CARBON in log_tail + chunk:
+                    carbon_at = elapsed
+                    print('Carbon loaded at %.1fs' % carbon_at, flush=True)
+                log_tail = chunk[-200:]
+            if follow and elapsed >= next_a and (carbon_at is None or
+                                                 elapsed < carbon_at + 15):
+                press('a')
+                next_a += 5
+            while route and carbon_at is not None and \
+                    elapsed >= carbon_at + 18 + route[0][0]:
+                press(route.pop(0)[1])
+                if not route:
+                    print('Scripted route sent at %.1fs' % elapsed, flush=True)
             if elapsed >= next_capture:
                 try:
                     data = (capture / 'latest.bmp').read_bytes()
@@ -114,6 +161,7 @@ with (capture / 'runtime.log').open('wb') as log:
         if intentional_stop:
             process.kill()
         process.wait()
+        live.close()
 text = (capture / 'runtime.log').read_text(encoding='utf-8', errors='replace')
 result = {'elapsed_seconds': round(time.monotonic()-started, 2),
           'executable_sha256': executable_sha256,
@@ -124,6 +172,7 @@ result = {'elapsed_seconds': round(time.monotonic()-started, 2),
           'intentional_stop': intentional_stop, 'exit_code': process.returncode,
           'milestones': {name: bool(test(text)) for name, test in check.MILESTONES},
           'frames': frames, 'save_root': env['RECOMP_SAVE_DIR']}
+result['carbon_loaded_at'] = carbon_at
 result['bar_loaded'] = '\\BAR\\BAR.ddf' in text
 result['contiguous_allocation_failures'] = text.count('[CONTIG] arena exhausted')
 result['milestones']['no contiguous allocation failures'] = (

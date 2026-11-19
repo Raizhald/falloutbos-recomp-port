@@ -1,5 +1,25 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- bar-pansy-update -->
+## 19. 11. večer: boj v baru na Pansy (`build/bar-pansy-01`, 563 s, GPU 60 FPS)
+
+`tools/playtest_session.py` dostal stejné řízení podle logu jako benchmark
+(pevně do 80 s, pak A každých 5 s do Carbonu + 15 s, trasa živě od
+Carbon + 18 s). Spuštěno `--bar-ready --easy`; Carbon 85.3 s, trasa do
+baru odeslána ve 202 s, bar načten. Pozor: trasa nechá v ruce Iron Gloves,
+pistoli je nutné nasadit (Back, dolů, A, B).
+Ručně přes `live.txt` (snímky `build/bar-pansy-01/snaps/s01..s25.png`):
+- přiběhli 4 nájezdníci; pistolí (20 nábojů) 2 zabiti -> úkol „Kill Drunken
+  Raiders“: **Bar raiders remaining: 6**, Experience 54, Health 188/400;
+- sebrány zátky (8) a Stimpak z mrtvých; tělo nejdřív stojí se zdviženýma
+  rukama (animace umírání), pak zmizí -- normální;
+- zbylí nájezdníci za pultem / v druhé místnosti, ruční navigace po
+  snímcích (kamera se otáčí) neefektivní -> ukončeno přes `stop.flag`.
+Žádný fault, výjimka ani nevyřešené volání. Postřeh (viditelnost postavy):
+za zdí bylo z Nadii vidět jen pár pixelů (`s21`), zeď se nezprůhlednila --
+ověřit proti originálu, jestli to hra dělá.
+<!-- /bar-pansy-update -->
+
 <!-- harness-update -->
 ## 19. 11. večer: benchmark řízený stavem hry (oprava nestabilního testu)
 
