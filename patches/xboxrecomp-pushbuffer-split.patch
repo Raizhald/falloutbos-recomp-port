@@ -1,0 +1,367 @@
+--- a/src/kernel/nv2a_pb_scan.c
++++ b/src/kernel/nv2a_pb_scan.c
+@@ -462,12 +462,59 @@
+  * wrap is handled by the caller, which scans the two pieces separately.
+  * Addresses are physical, like PUT's, and reach guest memory through the
+  * contiguous window. */
++/* A method whose parameters ran past the end of the segment -- PUT came in
++ * the middle of them, which D3D does whenever a kick splits a burst. The DMA
++ * engine stalls at PUT and carries on with the same method when PUT moves,
++ * so the next segment, which starts exactly there, begins with the rest of
++ * these parameters. Dropping them instead read the rest of the burst as
++ * command headers: a vertex-shader constant upload that lost 15 of its 16
++ * words left a bone matrix half stale, and that bone's vertices flew off
++ * across the screen (Fallout: BoS, the player character's limbs). */
++static struct {
++    int active;
++    uint32_t resume_va, method, subch, i, left;
++    int noninc;
++} s_seg_pend;
++static uint32_t s_seg_resumed, s_seg_split;
++
+ static uint32_t pb_walk_segment(uint32_t va, uint32_t end_va, int in_call,
+                                 uint32_t *jumps, uint32_t *unknown)
+ {
+     const uint8_t *mem = (const uint8_t *)xbox_GetMemoryOffset();
+     uint32_t words = 0;
+ 
++    if (!in_call && s_seg_pend.active) {
++        if (s_seg_pend.resume_va == va) {
++            s_seg_resumed++;
++            while (s_seg_pend.left && va < end_va) {
++                uint32_t m = s_seg_pend.noninc ? s_seg_pend.method
++                                               : s_seg_pend.method + s_seg_pend.i * 4;
++                note(s_seg_pend.subch, m);
++                if (s_exec_enabled)
++                    nv2a_pb_exec_method(s_seg_pend.subch, m,
++                                        *(const uint32_t *)(mem + va));
++                va += 4;
++                words++;
++                s_seg_pend.i++;
++                s_seg_pend.left--;
++            }
++            if (s_seg_pend.left) {             /* still not all there */
++                s_seg_pend.resume_va = va;
++                return words;
++            }
++        }
++        /* Done -- or the walk went somewhere else (the ring wrapped at a
++         * JUMP, which never falls inside a burst). */
++        else {
++            static int said;
++            if (said++ < 20)
++                fprintf(stderr, "[PB] split method %04X lost %u words: resume at"
++                        " 0x%08X, next segment starts 0x%08X\n", s_seg_pend.method,
++                        s_seg_pend.left, s_seg_pend.resume_va, va);
++        }
++        s_seg_pend.active = 0;
++    }
++
+     while (va < end_va && words < 0x100000u) {
+         uint32_t w = *(const uint32_t *)(mem + va);
+         va += 4;
+@@ -502,7 +549,8 @@
+             uint32_t method =  w & 0x1FFCu;
+             int noninc = (w & 0xE0000000u) == 0x40000000u;
+ 
+-            for (uint32_t i = 0; i < count && va < end_va; i++) {
++            uint32_t i;
++            for (i = 0; i < count && va < end_va; i++) {
+                 uint32_t m = noninc ? method : method + i * 4;
+                 note(subch, m);
+                 if (s_exec_enabled)
+@@ -511,6 +559,16 @@
+                 va += 4;
+                 words++;
+             }
++            if (i < count && !in_call) {
++                s_seg_pend.active = 1;
++                s_seg_pend.resume_va = va;
++                s_seg_pend.method = method;
++                s_seg_pend.subch = subch;
++                s_seg_pend.noninc = noninc;
++                s_seg_pend.i = i;
++                s_seg_pend.left = count - i;
++                s_seg_split++;
++            }
+             continue;
+         }
+         (*unknown)++;
+--- a/src/kernel/xbox_memory_layout.c
++++ b/src/kernel/xbox_memory_layout.c
+@@ -1483,10 +1483,22 @@
+                             nv2a_pb_scan_segment(XBOX_CONTIG_BASE | (last_put & 0x0FFFFFFFu),
+                                                  XBOX_CONTIG_BASE | (put      & 0x0FFFFFFFu));
+                         } else if (last_put && put < last_put) {
+-                            if (put_hi > last_put)
+-                                nv2a_pb_scan_segment(
+-                                    XBOX_CONTIG_BASE | (last_put & 0x0FFFFFFFu),
+-                                    XBOX_CONTIG_BASE | (put_hi   & 0x0FFFFFFFu));
++                            /* The tail before the wrap runs to the JUMP D3D
++                             * wrote at the ring's end, and the walk stops at
++                             * that JUMP. The highest PUT seen is not that end:
++                             * whatever D3D wrote after its last kick there --
++                             * constants, vertex formats, texture state --
++                             * was skipped, and a method straddling the
++                             * highest PUT lost its remaining parameters (half
++                             * a bone matrix: a character's arm stretched
++                             * across the screen in Fallout: BoS). The bound
++                             * only guards a ring reset without a JUMP:
++                             * the highest PUT rounded up to 64 KB. */
++                            uint32_t tail_end = ((put_hi > last_put ? put_hi : last_put)
++                                                 + 4u + 0xFFFFu) & ~0xFFFFu;
++                            nv2a_pb_scan_segment(
++                                XBOX_CONTIG_BASE | (last_put & 0x0FFFFFFFu),
++                                XBOX_CONTIG_BASE | (tail_end & 0x0FFFFFFFu));
+                             if (put > put_lo)
+                                 nv2a_pb_scan_segment(
+                                     XBOX_CONTIG_BASE | (put_lo & 0x0FFFFFFFu),
+--- a/src/kernel/nv2a_vsh_interp.c
++++ b/src/kernel/nv2a_vsh_interp.c
+@@ -33,6 +33,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <time.h>
+ 
+ static uint32_t s_program[NV2A_VSH_SLOTS][4];
+ static float    s_const[NV2A_VSH_CONSTANTS][4];
+@@ -94,8 +95,63 @@
+ void nv2a_vsh_set_cxt_write(uint32_t enable) { s_cxt_write = enable; }
+ int nv2a_vsh_cxt_write_enabled(void) { return s_cxt_write != 0; }
+ 
++/* RECOMP_VSH_CTRACE=<seconds>: from then, log every constant upload that
++ * touches c[54..65] (where Fallout: BoS's bone 12 lives): start, length in
++ * words, and the values. At most 400 lines. Diagnostics. */
++static uint32_t s_ct_start, s_ct_words;
++static float    s_ct_vals[16][4];
++static void ctrace_flush(void)
++{
++    static long from = -2;
++    static int lines;
++    uint32_t end, i;
++    if (from == -2) {
++        const char *e = getenv("RECOMP_VSH_CTRACE");
++        from = e ? atol(e) : -1;
++    }
++    if (from < 0 || !s_ct_words || lines >= 400
++        || clock() / CLOCKS_PER_SEC < from)
++        return;
++    end = s_ct_start + (s_ct_words + 3) / 4;
++    if (end <= 54 || s_ct_start > 65)
++        return;
++    lines++;
++    fprintf(stderr, "[CT] t=%ld load c[%u] words %u\n", (long)clock(), s_ct_start, s_ct_words);
++    for (i = s_ct_start; i < end && i < s_ct_start + 16; i++)
++        if (i >= 54 && i <= 65)
++            fprintf(stderr, "[CT]   c[%u] %.4g %.4g %.4g %.4g\n", i,
++                    s_const[i][0], s_const[i][1], s_const[i][2], s_const[i][3]);
++}
++
++static struct { uint32_t kind, a, b, c; } s_ring[512];
++static uint32_t s_ring_n;
++void nv2a_vsh_ring_note(uint32_t kind, uint32_t a, uint32_t b, uint32_t c)
++{
++    uint32_t i = s_ring_n++ & 511;
++    s_ring[i].kind = kind; s_ring[i].a = a; s_ring[i].b = b; s_ring[i].c = c;
++}
++void nv2a_vsh_ring_print(void)
++{
++    uint32_t i = s_ring_n > 512 ? s_ring_n - 512 : 0;
++    for (; i < s_ring_n; i++) {
++        uint32_t k = i & 511;
++        if (s_ring[k].kind == 1)
++            fprintf(stderr, "[RING] load c[%u] words %u\n", s_ring[k].a, s_ring[k].b);
++        else if (s_ring[k].kind == 2)
++            fprintf(stderr, "[RING] batch n %u start %u a0 %u\n", s_ring[k].a, s_ring[k].b, s_ring[k].c);
++        else
++            fprintf(stderr, "[RING] note %u %08X %08X %08X\n", s_ring[k].kind,
++                    s_ring[k].a, s_ring[k].b, s_ring[k].c);
++    }
++}
++
+ void nv2a_vsh_set_constant_load(uint32_t index)
+ {
++    if (s_ct_words)
++        nv2a_vsh_ring_note(1, s_ct_start, s_ct_words, 0);
++    ctrace_flush();
++    s_ct_start = index;
++    s_ct_words = 0;
+     s_const_load = index;
+     s_const_word = 0;
+     if (vsh_dump_enabled())
+@@ -104,6 +160,7 @@
+ 
+ void nv2a_vsh_constant_word(uint32_t word)
+ {
++    s_ct_words++;
+     if (s_const_load < NV2A_VSH_CONSTANTS)
+         memcpy(&s_const[s_const_load][s_const_word], &word, 4);
+     else if (vsh_dump_enabled()) {
+@@ -392,6 +449,29 @@
+     return r;
+ }
+ 
++uint32_t nv2a_vsh_start_slot(void) { return s_start_slot; }
++
++int nv2a_vsh_uses_a0(void)
++{
++    uint32_t s;
++    for (s = s_start_slot; s < NV2A_VSH_SLOTS; s++) {
++        if (field(s_program[s], 3, 1, 1) || field(s_program[s], 1, 21, 4) == 13)
++            return 1;
++        if (field(s_program[s], 3, 0, 1))
++            break;
++    }
++    return 0;
++}
++
++void nv2a_vsh_snapshot(void *file)
++{
++    FILE *f = (FILE *)file;
++    uint32_t hdr[4] = { 0x48535631u, s_start_slot, NV2A_VSH_SLOTS, NV2A_VSH_CONSTANTS };
++    fwrite(hdr, 4, 4, f);
++    fwrite(s_program, sizeof s_program, 1, f);
++    fwrite(s_const, sizeof s_const, 1, f);
++}
++
+ int nv2a_vsh_run(const float in[NV2A_VSH_INPUTS][4], Nv2aVshOutput *out)
+ {
+     static int dump = -1;
+--- a/src/kernel/nv2a_vsh_interp.h
++++ b/src/kernel/nv2a_vsh_interp.h
+@@ -53,6 +53,17 @@
+  * transform this batch" rather than drawing garbage. */
+ int  nv2a_vsh_run(const float in[NV2A_VSH_INPUTS][4], Nv2aVshOutput *out);
+ 
++/* Diagnostics: whether the program from the start slot indexes constants
++ * by a0 (skinning), and the whole program state -- start slot, program
++ * memory, constants -- for an offline re-run. */
++int  nv2a_vsh_uses_a0(void);
++uint32_t nv2a_vsh_start_slot(void);
++void nv2a_vsh_snapshot(void *file);
++/* A ring of recent events (constant uploads, plus whatever the executor
++ * notes), printed by nv2a_vsh_ring_print. Diagnostics. */
++void nv2a_vsh_ring_note(uint32_t kind, uint32_t a, uint32_t b, uint32_t c);
++void nv2a_vsh_ring_print(void);
++
+ /* Direct access, for the self-test. */
+ void nv2a_vsh_set_constant(uint32_t index, const float v[4]);
+ const float *nv2a_vsh_constant(uint32_t index);   /* for traces */
+--- a/src/kernel/nv2a_pb_exec.c
++++ b/src/kernel/nv2a_pb_exec.c
+@@ -3427,6 +3427,61 @@
+         s_vcache[slot].pos = i;
+         s_vcache[slot].gen = s_vcache_gen;
+     }
++    {
++        /* RECOMP_SKIN_DUMP=<dir>: a skinned batch (its program indexes c[] by
++         * a0) whose vertices spread over more than 160 surface pixels --
++         * a character mesh pulled apart -- is written out whole: program,
++         * constants, and per vertex the index, the 16 inputs and oPos.
++         * At most 6 files. Diagnostics only. */
++        static const char *dir = (const char *)-1;
++        static int dumps;
++        if (dir == (const char *)-1)
++            dir = getenv("RECOMP_SKIN_DUMP");
++        static long from = -1;
++        if (from < 0) {
++            const char *e = getenv("RECOMP_SKIN_DUMP_FROM");    /* seconds */
++            from = e ? atol(e) : 0;
++        }
++        if (dir && dumps < 6 && n >= 200 && batch_uses_program()
++            && clock() / CLOCKS_PER_SEC >= from && nv2a_vsh_uses_a0()) {
++            float lo[2] = { 3e38f, 3e38f }, hi[2] = { -3e38f, -3e38f };
++            for (i = 0; i < n; i++) {
++                int k;
++                if (!(s_xf[i].pos[3] > 0.0f)) continue;
++                for (k = 0; k < 2; k++) {
++                    if (s_xf[i].pos[k] < lo[k]) lo[k] = s_xf[i].pos[k];
++                    if (s_xf[i].pos[k] > hi[k]) hi[k] = s_xf[i].pos[k];
++                }
++            }
++            if (hi[0] - lo[0] > 160.0f || hi[1] - lo[1] > 160.0f) {
++                char path[512];
++                FILE *f;
++                snprintf(path, sizeof path, "%s/skin-%u-%u.bin", dir, s_gpu.flips, dumps);
++                if ((f = fopen(path, "wb")) != NULL) {
++                    uint32_t a;
++                    nv2a_vsh_snapshot(f);
++                    fwrite(&n, 4, 1, f);
++                    for (a = 0; a < 16; a++)
++                        fwrite(&s_gpu.attr[a], sizeof s_gpu.attr[a], 1, f);
++                    for (i = 0; i < n; i++) {
++                        float in[NV2A_VSH_INPUTS][4];
++                        for (a = 0; a < NV2A_VSH_INPUTS; a++)
++                            fetch_attr(&s_gpu.attr[a], s_gpu.idx[i], in[a]);
++                        fwrite(&s_gpu.idx[i], 4, 1, f);
++                        fwrite(in, sizeof in, 1, f);
++                        fwrite(s_xf[i].pos, 16, 1, f);
++                    }
++                    fclose(f);
++                    fprintf(stderr, "[SKIN] dumped %s: %u vertices over %.0fx%.0f px\n",
++                            path, n, hi[0] - lo[0], hi[1] - lo[1]);
++                    nv2a_vsh_ring_print();
++                    dumps++;
++                }
++            }
++        }
++    }
++    if (batch_uses_program())
++        nv2a_vsh_ring_note(2, n, nv2a_vsh_start_slot(), (uint32_t)nv2a_vsh_uses_a0());
+     xf_set_viewport();
+     {
+         const VertexAttr *tc = texcoord_attr();
+--- a/tests/nv2a_pb_walk/nv2a_pb_walk_test.c
++++ b/tests/nv2a_pb_walk/nv2a_pb_walk_test.c
+@@ -52,6 +52,7 @@
+ 
+ void nv2a_pb_resync(uint32_t get_phys);
+ void nv2a_pb_scan(uint32_t put_phys);
++void nv2a_pb_scan_segment(uint32_t start_va, uint32_t end_va);
+ 
+ static int s_fail;
+ #define CHECK(c) do { if (!(c)) { printf("FAIL line %d: %s\n", __LINE__, #c); s_fail = 1; } } while (0)
+@@ -228,6 +229,42 @@
+         expect(n0, 0x0710, 61);
+     }
+ 
++    /* The segment scan (the default walk): a burst that PUT splits -- here a
++     * 16-word vertex-shader constant upload, cut after its first word -- is
++     * finished by the next segment, which starts where PUT was. It used to be
++     * cut short there and the rest read as headers: 1.0f (0x3F800000) is a
++     * well-formed method header, so the upload lost 15 words and the stream
++     * ran on as garbage. */
++    {
++        int n0 = s_n, i, ok = 1;
++        float one = 1.0f;
++        uint32_t f1;
++        memcpy(&f1, &one, 4);
++        put(0xF00, hdr(16, 0, 0x0B80));
++        for (i = 0; i < 16; i++)
++            put(0xF04 + 4 * i, i == 0 ? 0x1234u : f1 + (uint32_t)i);
++        put(0xF44, hdr(1, 0, 0x0720)); put(0xF48, 71);
++        nv2a_pb_scan_segment(0x80000F00u, 0x80000F08u);   /* header + 1 word */
++        CHECK(s_n == n0 + 1);
++        nv2a_pb_scan_segment(0x80000F08u, 0x80000F20u);   /* 6 more words */
++        CHECK(s_n == n0 + 7);
++        nv2a_pb_scan_segment(0x80000F20u, 0x80000F4Cu);   /* the rest, and on */
++        CHECK(s_n == n0 + 17);
++        for (i = 0; i < 16; i++)
++            if (!(n0 + i < 64 && s_seen[n0 + i].method == 0x0B80u + 4u * (uint32_t)i
++                  && s_seen[n0 + i].param == (i == 0 ? 0x1234u : f1 + (uint32_t)i)))
++                ok = 0;
++        CHECK(ok);
++        expect(n0 + 16, 0x0720, 71);
++        /* A segment elsewhere (the ring wrapped) does not resume a burst. */
++        put(0xF80, hdr(4, 0, 0x0B80)); put(0xF84, 1);
++        nv2a_pb_scan_segment(0x80000F80u, 0x80000F88u);
++        put(0x0E80, hdr(1, 0, 0x0724)); put(0x0E84, 72);
++        nv2a_pb_scan_segment(0x80000E80u, 0x80000E88u);
++        CHECK(s_n == n0 + 19);
++        expect(n0 + 18, 0x0724, 72);
++    }
++
+     if (!s_fail)
+         printf("nv2a pushbuffer walk: ok\n");
+     return s_fail;
