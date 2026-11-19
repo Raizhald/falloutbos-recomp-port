@@ -1,5 +1,19 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- backup-update -->
+## Záloha na GitHubu (19. 11. 14:40)
+Soukromé repozitáře: `Raizhald/xboxrecomp-port` commit `3709a4f` (GPU back
+end + oprava pushbufferu, celé zdrojové soubory) a
+`Raizhald/falloutbos-recomp-port` commit `19d19f5` (`PlayGPU.cmd`, patche,
+`docs/handoff/` = tento dokument a návrh 60 FPS). Lokální git (větve
+`codex/*`, remote na upstream sp00nznet) se nemění; do upstreamu se nepushuje.
+Návod pro jiný počítač: `docs/handoff/NOVY-PC.md` v repozitáři
+`Raizhald/falloutbos-recomp-port` (kopie `outputs/NOVY-PC.md`).
+Rychlý běh `build/quick11.log` (GPU, po opravě pushbufferu): černé
+„kostičky“ na budově vpravo nahoře v Carbonu se v 19 snímcích neobjevily,
+byly ale i dříve jen občas -- neprokázáno.
+<!-- /backup-update -->
+
 <!-- pushbuffer-split-update -->
 ## 19. 11. odpoledne: ztracené příkazy pushbufferu opraveny (rozházené vrcholy postavy, chybné textury v baru)
 
