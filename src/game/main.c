@@ -391,6 +391,16 @@ int main(int argc, char **argv)
     if (!getenv("RECOMP_USB"))
         _putenv_s("RECOMP_USB", "1");
 
+    /* This title continually replaces texture palettes. The toolkit's legacy
+     * mode retains freed contiguous blocks, eventually exhausting its arena.
+     * A subsequent palette lock then resolves physical address zero and its
+     * writes overwrite XPP's controller structures in the reserved first page.
+     * Use the toolkit's reclaiming allocator for normal gameplay, including
+     * direct exe launches (not only Play.cmd and the test tools). */
+    if (!getenv("RECOMP_HEAP_RECLAIM"))
+        _putenv_s("RECOMP_HEAP_RECLAIM", "1");
+    printf("[BOOT] Reclaiming freed Xbox memory enabled\n");
+
     /* .data is 5.4 MB virtual against 62 KB raw: the engine keeps its big
      * pools as zero-fill statics rather than heap. The default 64 MB map
      * covers that; raise it with xbox_SetMapSize() if allocations past the
