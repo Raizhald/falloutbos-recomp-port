@@ -1,5 +1,59 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- newpc-update -->
+## 19. 11. večer: nový počítač (notebook) -- výběr výkonné grafiky
+
+Nový PC: MSI Katana 15 HX B14WGK, Intel Core i7-14650HX (16 jader / 24
+vláken), 16 GB RAM, Intel UHD + **NVIDIA GeForce RTX 5070 Laptop GPU**.
+Projekt leží v `C:\Users\sesta\Desktop\FLESKA-Fallout\falloutbos`, venv v
+`..\fbos-venv` (Python 3.14.7, capstone 5.0.7), CMake se bere z VS 2022
+Build Tools (`...\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin`),
+není na PATH. Fronta: `Fronta.cmd`; úlohy v `build\queue` se spouštějí
+z `build\queue\done`, proto skripty začínají `cd /d "%~dp0..\..\.."`.
+Zkopírované soubory měly atribut jen pro čtení, zrušen přes `attrib -R`
+(deps, src, docs, tools, patches, kořen).
+
+Problém: D3D11 back end bral výchozí adaptér = Intel UHD (Optimus), navíc
+na baterii -> GPU běh 21.9 FPS, back end 16-48 ms/snímek
+(`build/pb-verify-newpc`, staré EXE `9dbea663…`, kopie
+`bin/fbos-before-adapter.exe`). V tom běhu i 2 C++ výjimky 0xE06D7363
+v RaiseException při čtení `hud.clp`/`armor.clp` (kontrola „no faults“);
+v dalších bězích (v zásuvce, RTX) se neobjevily -- příčina nezjištěna.
+
+Oprava `nv2a_backend_d3d11.c`: zařízení se vytváří na adaptéru z
+`IDXGIFactory6::EnumAdapterByGpuPreference(HIGH_PERFORMANCE)` (fallback na
+výchozí), log `[GPUB] adapter: ...`. `RECOMP_GPU_ADAPTER=default` vrací
+původní chování. Nově i `RECOMP_GPU_SHOT_FROM=<s>` (snímky render targetu
+až od dané doby; v menu běží hra >1000 FPS a limit 100 snímků se jinak
+vyčerpá v intru).
+
+Měření (`benchmark_runtime.py --combat-after`, GPU od startu, v zásuvce):
+| Běh | EXE | FPS | Kontroly |
+|---|---|---|---|
+| `pb-verify-newpc` (Intel UHD, baterie) | `9dbea663…` | 21.9 | no faults = False |
+| `pb-verify-newpc2` (RTX) | `d94b55b4…` | 105.1 | vše OK |
+| `pb-verify-newpc3` (RTX, + SHOT_FROM) | `e3e3dac5…` | **135.0** | vše OK |
+Aktuální `bin/fbos.exe` SHA-256 `E3E3DAC5F57E57B0F0AF2F1F56153488843750C16350CA62249F1873591AB831`.
+Úvod, menu, výběr postavy a intro kapitoly na GPU vypadají čistě
+(`build/pb-verify-newpc3-sheet.jpg`).
+Snímky Carbonu se zatím nepodařilo zachytit: `SHOT_EVERY` počítá snímky a
+v menu/intru (>1000 FPS) se limit 100 vyčerpá dřív. `pb-verify-newpc4`
+(`SHOT_FROM=110`, `EVERY=200`) selhal (682 FPS, bar se nenačetl): zápis
+snímků zpomalil hru a časovaný pad skript se rozešel (hra stála na textu
+T. S. Eliota před kapitolou 1). Chyba metodiky, ne hry. Další krok: snímky
+podle času (např. `RECOMP_GPU_SHOT_EVERY_MS`) nebo jen v měřeném okně.
+`pb-verify-newpc5` (`RECOMP_GPU_SHOT_EVERY_MS=2500`, `SHOT_FROM=110`,
+EXE `8ac3b441…`): hra prošla Carbonem (nájezdníci, inventář, pistole, vchod
+do baru), ale později než čeká skript, takže měření padlo do intra (713 FPS,
+„Bar loads“ = False). Na tomto PC se časovaný pad skript občas rozejde na
+textové obrazovce (T. S. Eliot) před kapitolou 1 -- 2 z 5 běhů; nestabilita
+testu, ne hry. **Vizuální ověření opravy pushbufferu:** ~65 snímků Carbonu
+(`build/pb5-carbon-zoom.jpg`, `build/pb-verify-newpc5-shots`) bez černých
+„kostiček“ na budovách a bez překrytí postavy geometrií -> bod 1 z NOVY-PC.md
+splněn. Nová proměnná `RECOMP_GPU_SHOT_EVERY_MS=<ms>` (snímky podle času).
+Aktuální `bin/fbos.exe` je build s EVERY_MS (`8ac3b441…`).
+<!-- /newpc-update -->
+
 <!-- backup-update -->
 ## Záloha na GitHubu (19. 11. 14:40)
 Soukromé repozitáře: `Raizhald/xboxrecomp-port` commit `3709a4f` (GPU back
