@@ -32,3 +32,6 @@ __pycache__/
 *.pyc
 deps/
 setup.log
+
+# Player settings written by Settings.cmd / Play.cmd
+settings.ini

@@ -1,5 +1,35 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- scale-settings-update -->
+## 19. 11. večer: vyšší rozlišení (`RECOMP_GPU_SCALE`) a nastavení pro hráče
+
+**Rozlišení:** `nv2a_backend_d3d11.c` -- `RECOMP_GPU_SCALE=1..4` (výchozí 1).
+Render targety, hloubkové buffery, kopie pro self-sampling, viewport,
+scissor a obdélníky `ClearView` jsou k-krát větší; vše, co vidí host
+(pozice vrcholů -- `g_vp` = 2/W v pixelech hosta, texelové škály, logy,
+otisk paměti), zůstává v pixelech hosta. Počáteční obsah RT z paměti se
+nahraje v 1x a roztáhne blitem (nearest); zpětné čtení jde přes 1x kopii
+(`down_tex`, lineární blit) do stagingu. Blit pipeline (`g_blit_init`,
+`g_blit`) sdílí prezentace i škálování. Ověřeno: testy back endu prošly
+(scale 1), `build/scale1-smoke` vs `scale3-smoke` (celá obrazovka v Carbonu,
+`build/scale-compare.png`): ve 3x hladké hrany a ostřejší postava, textury
+hry zůstávají v původním rozlišení (nearest). Benchmark 3x
+`build/scale3-bench` 101.2 FPS (1x ~133), vše OK.
+
+**Nastavení:** `settings.ini` v kořeni (v `.gitignore`), `Play.cmd` ho při
+startu převede na proměnné (`Renderer=GPU|Software`, `ResolutionScale`,
+`VSync`, `Fullscreen`, `WindowScale`, `FPSLimit` 0 = bez limitu, `Mute`);
+chybí-li, vytvoří výchozí (GPU, 2x, vsync, okno, 60 FPS). `PlayGPU.cmd`
+jen vynutí GPU (`FBOS_FORCE_GPU`). `Settings.cmd` otevře okno
+`tools/settings_gui.ps1` (WinForms, anglicky; Save / Save and Play).
+Benchmark a testy spouští `fbos.exe` přímo, nastavení je neovlivní.
+Ověřeno `build/settings-test.log` (výchozí soubor, software + 3x + bez
+limitu, vynucené GPU). Okno nastavení se zobrazilo; snímek testem se
+nepodařil (háček odstraněn).
+**Fronta:** v prostředí okna fronty zůstaly `RECOMP_GPU_SHOT_*` z dřívějších
+úloh (viz výpis v `settings-test.log`) -- frontu restartovat.
+<!-- /scale-settings-update -->
+
 <!-- present-update -->
 ## 19. 11. večer: obraz přímo z GPU, celá obrazovka, vsync
 
