@@ -40,6 +40,17 @@ endif()
 # function that skips its epilogue corrupts its *caller* and nothing crashes.
 # This makes every indirect call check them and name the offender. Costs three
 # compares per call; off by default.
+# Differential testing of lifted code against the original instructions:
+# every direct call asks src/game/difftest.c whether to snapshot guest state
+# around it (RECOMP_DIFFTEST_VA / _NTH / _DIR). tools/difftest_emulate.py
+# replays the original code from the snapshot. Off by default; build it in
+# its own tree and copy bin/fbos.exe away, it writes the same output path.
+option(FBOS_DIFFTEST "Snapshot guest state around one call for differential testing" OFF)
+if(FBOS_DIFFTEST)
+    add_compile_definitions(RECOMP_DIFFTEST)
+    message(STATUS "Differential test hook: ON")
+endif()
+
 option(FBOS_ABI_CHECK "Report functions that clobber callee-saved registers" OFF)
 if(FBOS_ABI_CHECK)
     add_compile_definitions(RECOMP_ABI_CHECK)

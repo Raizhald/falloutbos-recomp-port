@@ -1,34 +1,50 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
 <!-- bink-update -->
-## 19. 11. večer: rozbité pixely ve videích (Bink) -- stav vyšetřování
+## 19. 11. večer: rozbité pixely ve videích (Bink) -- VYŘEŠENO
 
-Příznak: v Bink videích (intro, pozadí menu, výběr postavy) rozházené bloky
-~8x8 s vysokofrekvenčním vzorem a přesycenými barvami
-(`build/artifact-zoom2.png`). Deterministické: na stejných místech v každém
-běhu, GPU i software (už `docs/boot.md`, Known issues).
-**Referenční dekodér je čistý:** `ffmpeg` (binkvideo) dekóduje
-`game/resx/Character_3.bik` (640x480, BIKi, 30 fps) bez artefaktů -> chyba je
-v rekompilovaném dekodéru, ne ve videu ani ve vykreslování.
-Zjištěno: jádro dekodéru (sekce `BINK`, 0x000C2900-0x000D005C, 123 funkcí)
-**nepoužívá MMX** -- MMX je jen v blitrech (`BINK16MX`...), takže IDCT a
-dekódování koeficientů jsou celočíselný x86 kód. MMX helpery ověřuje
-`tests/mmx_integer` proti CPU. Prověřeno a v pořádku: `sbb`/`adc` mají vždy
-nastavený CF, `neg`+`sbb`, `shrd`, `sar`; v Binku žádné `fild/fistp qword`
-kopie ani nepřeložené instrukce; DPC běží na vlákně časovače (vlastní TLS
-registry), APC jen ve waitech.
-Opraveno mimochodem (nebyla to příčina): lifter nemaskoval počet posunu u
-`shl/sal/shr reg, cl` (`esi = esi >> LO8(ecx)`, v C UB pro >= 32; `sar` už
-maskoval). `_lift_shift` nyní `& 31u` (imm maskováno při liftu), test
-`tools/recomp/test_lifter_shift_count.py`; kód přegenerován (`regen.sh`,
-log `build/regen-shiftmask.log`), EXE `3EAE714E…`, záloha
-`bin/fbos-before-shiftmask.exe`, `build/gen-before-shiftmask/`. Artefakty
-po regeneraci na stejných místech (`build/shiftmask-smoke`).
-Další postup: diferenciálně -- vypsat z běžící hry dekódované YUV roviny
-Binku (adresy z volání `BinkCopyToBuffer`/blitru) pro konkrétní snímek a
-porovnat s `ffmpeg -i Character_3.bik` po blocích 8x8; první odlišný blok
--> typ bloku (Bink 1: skip/scaled/motion/run/residue/intra/fill/inter/
-pattern/raw) -> funkce dekodéru -> instrukce.
+Příznak: v Bink videích (intro, menu, výběr postavy) bloky 8x8 se šachovnicí
+a přesycenými barvami, deterministicky. `ffmpeg` dekóduje stejné `.bik`
+čistě -> chyba v rekompilovaném dekodéru.
+
+**Příčina:** lifter překládal `movsx ebp, bp` jako `ebp = LO16(ebp)` --
+seznam 16bitových registrů v `_lift_movsx` neměl `bp` a `sp` (`movzx` je
+měl). IDCT Binku (`sub_000CD710`) drží řádek 6 každého sloupce v `bp`;
+každý záporný koeficient v řádku 6 se stal ~65535 a sloupec IDCT se
+rozjel. V celé hře je to jediné takové místo. Oprava v
+`deps/xboxrecomp/tools/recomp/lifter.py`, test
+`tools/recomp/test_lifter_shift_count.py` (`MovsxEveryRegister`).
+Ověřeno: hlavní menu bez artefaktů (`build/movsx-smoke`), emulátor:
+všech 714 volání IDCT v jednom snímku shodných (`build/difftest-mtrace4.log`),
+benchmark `build/movsx-bench` 117.5 FPS, vše OK (EXE `b035104d…`).
+Pozn.: v tom běhu se menu 9x vrátilo do smyčky intra (Carbon až ve 265 s)
+-- harness to zvládl, ale mačkání A každých 5 s v menu je neohrabané;
+lepší by bylo reagovat na načtení `Character_3.bik` / `chap1_*.bik`.
+
+**Cestou opraveno (správně, ale nebyla to příčina):** `shl/sal/shr reg, cl`
+bez maskování počtu (`& 31u`), dvou/tříoperandový `imul` jako znaménkové
+násobení `int32_t` (přetečení = UB v C; nyní `uint32_t`). Testy tamtéž.
+
+**Nový nástroj -- diferenciální test proti původním instrukcím**
+(`cmake -DFBOS_DIFFTEST=ON` v `build-difftest`, výsledek
+`bin/fbos-difftest.exe`; job ve frontě zálohuje a vrací hlavní EXE):
+- `RECOMP_DIFFTEST_VA=<hex>` `_NTH=<n>` `_AFTER=<s>` `_DIR`: snapshot
+  registrů a paměti (RAM + kontinuální okno) před a po n-tém volání funkce.
+- `RECOMP_DIFFTEST_TRACE_VA=<hex>`: vstup i výstup (blok 8x8 + rámec)
+  každého volání dané funkce během sledovaného volání; `=ALL`: sekvence
+  všech volání (adresa, registry, 32 B argumentů).
+- `RECOMP_DIFFTEST_WATCHPLANE=1`: zápisy do cílové roviny (arg1, arg3*arg4)
+  přes ochranu stránek -> `planewrites.bin`; `RECOMP_DIFFTEST_WATCH=<va>`:
+  hardwarová zarážka na jeden bajt.
+- `tools/difftest_run.py <name> <va> [nth] [timeout] [after]`: spustí,
+  počká na snapshot, ukončí.
+- `tools/difftest_emulate.py <dir> [--writers LO HI] [--trace VA]
+  [--calltrace]`: přehraje původní x86 v Unicornu (`pip install unicorn`
+  ve venv) a porovná; `tools/difftest_writers.py <dir>`: poslední nativní
+  zapisovatel chybných bajtů (přes `bin/fbos-difftest.map`).
+Postup, který chybu našel: C9010 (dekód roviny) liší -> zapisovatel je
+IDCT CD710 -> výstup/rámec CD710 při návratu -> sloupcový mezivýsledek se
+liší jen ve sloupcích se záporným koeficientem v řádku 6 -> `movsx ebp, bp`.
 <!-- /bink-update -->
 
 <!-- scale-settings-update -->

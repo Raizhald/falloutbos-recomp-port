@@ -24,6 +24,7 @@ set(GAME_SOURCES
     # this one is *meant* to be edited per title: it is where a function the
     # lifter got wrong gets replaced by hand.
     recomp/recomp_manual.c
+    difftest.c              # empty unless FBOS_DIFFTEST
     ${RECOMP_GEN_SOURCES}
 )
 
