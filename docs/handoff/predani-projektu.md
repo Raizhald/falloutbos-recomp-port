@@ -1,5 +1,23 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- vsh-par-update -->
+## 20. 11. večer: propad FPS ve widescreenu, vertex programy na víc jader
+
+Hráč hlásil ~40 FPS. Měření (`benchmark_runtime`, bez limitu, 2x + Best):
+4:3 ~120 FPS, 16:9 ~54 FPS (obrys bez vlivu). Širší záběr kreslí 101 místo
+56 dávek, 46k místo 26k vrcholů; vertex programy se interpretují na CPU v
+jednom vlákně (executor), herní vlákno na něj čeká (`sub_000AB810`). S
+V-Syncem se 54 FPS lámalo na ~40. Chyba procesu: widescreen byl ověřen jen
+vizuálně, výkon měřen ve 4:3 s limitem 60 -- po změně, která mění množství
+vykreslovaného, měřit i rychlost s nastavením hráče.
+Oprava `nv2a_pb_exec.c` (`raster_batch_program`): cache vrcholů rozhodne
+sériově, unikátní vrcholy dávky (>= 384) se spočítají na poolu vláken
+(`RECOMP_VSH_THREADS`, výchozí jádra/2, max 8; 0 vypne), pak se doplní zásahy
+cache. Program/konstanty jsou během dávky jen ke čtení; cxt_write zůstává
+sériově. Výsledek: 16:9 + 2x + Best + obrys **76 FPS** (`V1-bench-full`),
+4:3 **140 FPS** (`V2-bench-43`, dříve ~120), obraz beze změny (`ws-rt9`).
+<!-- /vsh-par-update -->
+
 <!-- difftest-batch-update -->
 ## 20. 11.: hromadný lov chyb (`tools/difftest_batch.py`)
 
