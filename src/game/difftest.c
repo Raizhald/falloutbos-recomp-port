@@ -137,8 +137,19 @@ static void dt_batch_init(void)
     FILE *f;
     char line[64];
     int n = 0;
+    const char *only = getenv("RECOMP_DIFFTEST_ONLY");
     s_tested = (uint8_t *)calloc(0x00200000u / 8, 1);
     if (!s_tested) { s_batch = 0; return; }
+    /* RECOMP_DIFFTEST_ONLY=<file>: just these functions (hex VAs). */
+    if (only && (f = fopen(only, "r")) != NULL) {
+        memset(s_tested, 0xFF, 0x00200000u / 8);
+        while (fgets(line, sizeof line, f)) {
+            uint32_t va = (uint32_t)strtoul(line, NULL, 16);
+            if (va && va < 0x00200000u)
+                s_tested[va >> 3] &= (uint8_t)~(1u << (va & 7));
+        }
+        fclose(f);
+    }
     if (skip && (f = fopen(skip, "r")) != NULL) {
         while (fgets(line, sizeof line, f)) {
             uint32_t va = (uint32_t)strtoul(line, NULL, 16);

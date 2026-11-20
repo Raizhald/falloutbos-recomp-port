@@ -39,6 +39,8 @@ ap.add_argument('--carbon', action='store_true')
 ap.add_argument('--name', default='batch')
 ap.add_argument('--emu-timeout', type=float, default=90)
 ap.add_argument('--limit', type=int, default=30_000_000, help='emulator instruction limit')
+ap.add_argument('--only', default='',
+                help='test only these (comma-separated hex VAs), again if already tested')
 ap.add_argument('--retest', default='',
                 help='test these again (comma-separated hex VAs, or "flagged" for every '
                      'function whose last verdict was differs/missed)')
@@ -75,6 +77,11 @@ if args.retest:
         again = {int(x, 16) for x in args.retest.split(',') if x.strip()}
     done -= again
     print('retesting %d functions' % len(again), flush=True)
+only = out / 'only.txt'
+if args.only:
+    want = {int(x, 16) for x in args.only.split(',') if x.strip()}
+    done -= want
+    only.write_text(''.join('%08X\n' % v for v in sorted(want)))
 skip = out / 'skip.txt'
 skip.write_text(''.join('%08X\n' % v for v in sorted(done)))
 run = out / args.name
@@ -89,6 +96,8 @@ env = dict(os.environ, RECOMP_PB_EXEC='1', RECOMP_AUDIO_MUTE='1', RECOMP_GPU_BAC
            RECOMP_DIFFTEST_BATCH='1', RECOMP_DIFFTEST_DIR=str(cur),
            RECOMP_DIFFTEST_SKIP=str(skip), RECOMP_DIFFTEST_AFTER=str(args.after),
            RECOMP_SAVE_DIR=str(run / 'saves'))
+if args.only:
+    env['RECOMP_DIFFTEST_ONLY'] = str(only)
 for k in ('RECOMP_FB_WINDOW', 'RECOMP_KEYBOARD', 'RECOMP_MKB', 'RECOMP_DIFFTEST_VA'):
     env.pop(k, None)
 

@@ -244,7 +244,9 @@ def main():
             e += 0                           # both are after the callee's ret
         say('  %-4s emulator %08X  recompiled %08X %s' % (k, e, n, '' if e == n else '<-- differs'))
 
-    if 'fp0' in post_r:
+    # ST0 is a result only when the call leaves one more value on the x87
+    # stack (a float return); otherwise it is a freed register.
+    if 'fp0' in post_r and (post_r['fp_top'] & 7) == ((pre_r['fp_top'] + 7) & 7):
         from unicorn import x86_const as X
         top = (uc.reg_read(X.UC_X86_REG_FPSW) >> 11) & 7
         st0 = from_f80(uc.reg_read(getattr(X, 'UC_X86_REG_FP%d' % top)))

@@ -23,11 +23,20 @@
   při `ret` je publikují. Test `tools/recomp/test_callret_flags.py`; všechny
   testy lifteru prošly; hra do Carbonu bez chyb. Po opravě a s načteným
   stavem x87 jsou `sub_00097CC8`/`sub_00097CA4` shodné.
-- Zbývající kandidáti k prověření: Bink `0xA0FD0..0xA4CD0` (emulátor zapisuje
-  do rámců volajícího, přeložený kód ne), `0x55630/0x56260` (haldy
-  0x48xxxx), `0x57AC0` a `0x994DF` (esp po návratu), `0xC4E30/0x78C00`.
-  Část bude šum z jiných vláken; ověřit jednotlivě (`difftest_run.py` +
-  `difftest_emulate.py --writers`).
+- Kandidáti prověřeni jednotlivě (`build/difftest/q-*`, běh `only2` přes
+  `--only` v Carbonu) s opraveným nástrojem: Bink `0xA0FD0..0xA4CD0`, haldové
+  `0x55630/0x557E0/0x56260`, `0x2D8F0/0x2D980/0x3B090/0x67CA0/0x6FE70/
+  0x76DC0/0xAAA60/0x78C00/0xC4E30` jsou **shodné** (dřívější rozdíly byly
+  chybou nástroje: chyběl stav x87, emulátor zastavil na vnořeném návratu).
+  Zbylé rozdíly jsou šum: `0x5AB10/0x917E6` (rdtsc), `0x9112E` (KeTickCount),
+  `0xC2CD0/0xC5440/0xC6E70/0xCB070` (pozice zvuku z APU, mění ji jiné
+  vlákno), `0x9494B` (volání kernelu), `0x994A4/0x994DF` (SEH prolog/epilog
+  používá ebp volajícího, který snímek nemá), `0x7C580` (ST0 je uvolněný
+  registr -- nástroj už ST0 porovnává jen u float návratu). Další skutečná
+  chyba se nenašla.
+- `RECOMP_DIFFTEST_ONLY=<soubor>` / `difftest_batch.py --only VA,...` testuje
+  jen vybrané funkce. Build s `FBOS_DIFFTEST` jde do `bin/difftest/`, takže
+  nesahá na běžící `bin/fbos.exe`.
 <!-- /difftest-batch-update -->
 
 <!-- silhouette-update -->

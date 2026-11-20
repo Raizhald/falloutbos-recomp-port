@@ -29,6 +29,14 @@ set(GAME_SOURCES
     ${RECOMP_GEN_SOURCES}
 )
 
+# The differential-test build goes to bin/difftest, so building it never
+# touches (or waits on a running) bin/fbos.exe.
+if(FBOS_DIFFTEST)
+    set(FBOS_BIN_DIR "${CMAKE_SOURCE_DIR}/bin/difftest")
+else()
+    set(FBOS_BIN_DIR "${CMAKE_SOURCE_DIR}/bin")
+endif()
+
 # Create console application (for debugging; switch to WIN32 for release)
 add_executable(fbos ${GAME_SOURCES})
 
@@ -133,7 +141,7 @@ target_compile_definitions(fbos PRIVATE
 
 # Output to project root for easy testing
 set_target_properties(fbos PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_SOURCE_DIR}/bin"
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/bin"
+    RUNTIME_OUTPUT_DIRECTORY "${FBOS_BIN_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${FBOS_BIN_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${FBOS_BIN_DIR}"
 )
