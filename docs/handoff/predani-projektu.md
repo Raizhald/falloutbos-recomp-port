@@ -1,5 +1,35 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- difftest-batch-update -->
+## 20. 11.: hromadný lov chyb (`tools/difftest_batch.py`)
+
+- `difftest.c`: `RECOMP_DIFFTEST_BATCH=1` -- snímek prvního volání každé dosud
+  netestované funkce (po jedné; `<dir>/ready`, harness ho po emulaci smaže),
+  `RECOMP_DIFFTEST_SKIP` = už otestované; do registrů i stav x87 (`fp0..7`,
+  `fp_cw`). `difftest_emulate.py`: načte stav x87 do Unicornu a porovná ST0;
+  zastaví až na návratu tohoto volání (ne vnořeného); u krátkých rozdílů
+  vypíše hodnoty i jako float.
+- `difftest_batch.py --minutes N [--carbon] [--retest flagged|VA,...]`:
+  výsledky v `build/difftest-batch/results.jsonl`, zprávy rozdílů v
+  `reports/`. Šum se nepočítá: mrtvý zásobník pod esp, ecx/edx, floaty
+  lišící se o < 1e-5 (x87 80 bit vs double).
+- Výsledek: 839 funkcí, 601 shodných, 202 neemulovatelných (volání kernelu,
+  hardware), zbytek kandidáti.
+- **Nalezená chyba (opraveno v lifteru):** `call` se bral jako instrukce,
+  která nemění příznaky; ručně psané XDK funkce pro x87 matematiku (pow/log,
+  `sub_00097CC8` → `sub_0009B221`) ale vracejí výsledek v ZF a volající hned
+  větví. Teď call nastaví stav „callret“, větvení čte `g_rflags`, a funkce,
+  na jejichž příznaky někdo větví (`CALLRET_CONSUMED`), se přeloží znovu a
+  při `ret` je publikují. Test `tools/recomp/test_callret_flags.py`; všechny
+  testy lifteru prošly; hra do Carbonu bez chyb. Po opravě a s načteným
+  stavem x87 jsou `sub_00097CC8`/`sub_00097CA4` shodné.
+- Zbývající kandidáti k prověření: Bink `0xA0FD0..0xA4CD0` (emulátor zapisuje
+  do rámců volajícího, přeložený kód ne), `0x55630/0x56260` (haldy
+  0x48xxxx), `0x57AC0` a `0x994DF` (esp po návratu), `0xC4E30/0x78C00`.
+  Část bude šum z jiných vláken; ověřit jednotlivě (`difftest_run.py` +
+  `difftest_emulate.py --writers`).
+<!-- /difftest-batch-update -->
+
 <!-- silhouette-update -->
 ## 20. 11.: postava vidět za zdmi (`RECOMP_SILHOUETTE`, Settings „Silhouette“)
 

@@ -33,12 +33,40 @@ REGS = {'eax': UC_X86_REG_EAX, 'ebx': UC_X86_REG_EBX, 'ecx': UC_X86_REG_ECX,
         'esp': UC_X86_REG_ESP}
 
 
+def f80(v):
+    """A double as Unicorn's x87 register value (mantissa, sign+exponent)."""
+    import math
+    if v == 0.0:
+        return (0, 0x8000 if math.copysign(1.0, v) < 0 else 0)
+    sign = 0x8000 if v < 0 else 0
+    if math.isinf(v):
+        return (1 << 63, sign | 0x7FFF)
+    if math.isnan(v):
+        return (3 << 62, 0x7FFF)
+    m, e = math.frexp(abs(v))           # v = m * 2**e, m in [0.5, 1)
+    return (int(m * (1 << 64)), sign | (e - 1 + 16383))
+
+
+def from_f80(t):
+    mant, se = t
+    exp = se & 0x7FFF
+    if exp == 0 and mant == 0:
+        return -0.0 if se & 0x8000 else 0.0
+    if exp == 0x7FFF:
+        return float('nan') if mant & ((1 << 62) - 1) else (float('-inf') if se & 0x8000 else float('inf'))
+    v = mant / float(1 << 63) * 2.0 ** (exp - 16383)
+    return -v if se & 0x8000 else v
+
+
 def read_regs(path):
     out = {}
     for line in Path(path).read_text().split('\n'):
         if '=' in line:
             k, v = line.strip().split('=', 1)
-            out[k] = int(v, 16) if k != 'fp_top' else int(v)
+            if k.startswith('fp') and k[2:].isdigit():
+                out[k] = struct.unpack('<d', struct.pack('<Q', int(v, 16)))[0]
+            else:
+                out[k] = int(v, 16) if k != 'fp_top' else int(v)
     return out
 
 
@@ -114,6 +142,15 @@ def main():
     for k, r in REGS.items():
         uc.reg_write(r, pre_r[k])
     uc.reg_write(UC_X86_REG_EBP, pre_r['esp'])
+    # The x87 state the recompiled code had (the math helpers take their
+    # arguments in ST0); without it they compute from an empty stack.
+    if 'fp0' in pre_r:
+        from unicorn import x86_const as X
+        for k in range(8):
+            uc.reg_write(getattr(X, 'UC_X86_REG_FP%d' % k), f80(pre_r['fp%d' % k]))
+        uc.reg_write(X.UC_X86_REG_FPSW, (pre_r['fp_top'] & 7) << 11)
+        uc.reg_write(X.UC_X86_REG_FPCW, pre_r.get('fp_cw', 0x27F))
+        uc.reg_write(X.UC_X86_REG_FPTAG, 0)     # all valid
     ret = pre_r['return']
     say('call %08X, return to %08X, esp %08X' % (pre_r['va'], ret, pre_r['esp']))
 
@@ -185,8 +222,15 @@ def main():
         uc.hook_add(UC_HOOK_BLOCK, on_block)
     uc.hook_add(UC_HOOK_MEM_UNMAPPED, on_unmapped)
     uc.hook_add(UC_HOOK_INTR, on_intr)
+    # Stop at the return address only when this call's frame is gone: a
+    # nested call can come back to the same address (a callback into the
+    # caller), and stopping there compared a half-finished call.
+    def on_ret_addr(uc_, addr, size, user):
+        if uc_.reg_read(UC_X86_REG_ESP) > pre_r['esp']:
+            uc_.emu_stop()
+    uc.hook_add(UC_HOOK_CODE, on_ret_addr, begin=ret, end=ret)
     try:
-        uc.emu_start(pre_r['va'], ret, count=a.limit)
+        uc.emu_start(pre_r['va'], 0xFFFFFFFF, count=a.limit)
     except UcError as e:
         say('emulation stopped: %s at eip %08X' % (e, uc.reg_read(UC_X86_REG_EIP)))
     for f in faults[:10]:
@@ -199,6 +243,17 @@ def main():
         if k == 'esp':
             e += 0                           # both are after the callee's ret
         say('  %-4s emulator %08X  recompiled %08X %s' % (k, e, n, '' if e == n else '<-- differs'))
+
+    if 'fp0' in post_r:
+        from unicorn import x86_const as X
+        top = (uc.reg_read(X.UC_X86_REG_FPSW) >> 11) & 7
+        st0 = from_f80(uc.reg_read(getattr(X, 'UC_X86_REG_FP%d' % top)))
+        nst0 = post_r['fp%d' % (post_r['fp_top'] & 7)]
+        same = (st0 == nst0 or (st0 != st0 and nst0 != nst0)
+                or abs(st0 - nst0) <= 1e-9 * max(abs(st0), abs(nst0)))
+        say('  st0  emulator %.17g (top %d)  recompiled %.17g (top %d) %s'
+            % (st0, top, nst0, post_r['fp_top'] & 7,
+               '' if same and top == (post_r['fp_top'] & 7) else '<-- differs'))
 
     post_map = {va: blob for va, blob in post}
     cls = {'both': [], 'emu': [], 'native': []}
@@ -225,17 +280,29 @@ def main():
             ec = any(emu[k] != before[k] for k in range(i, j))
             nc = any(after[k] != before[k] for k in range(i, j))
             kind = 'both' if ec and nc else 'emu' if ec else 'native'
-            cls[kind].append((va + i, j - i))
+            # The aligned dword around a short run, as both sides have it:
+            # tells a float rounding apart from a wrong value.
+            a0 = i & ~3
+            if j - a0 <= 4 and a0 + 4 <= n:
+                words = (emu[a0:a0 + 4], after[a0:a0 + 4])
+            else:
+                words = None
+            cls[kind].append((va + i, j - i, words))
             i = j
     for kind, runs in cls.items():
-        total = sum(n for _, n in runs)
+        total = sum(n for _, n, _w in runs)
         say('%-6s %6d runs, %8d bytes' % (kind, len(runs), total))
-        for va, n in runs[:25]:
-            say('    %08X +%d' % (va, n))
+        for va, n, words in runs[:25]:
+            if words and kind == 'both':
+                fe, fn = struct.unpack('<f', words[0])[0], struct.unpack('<f', words[1])[0]
+                say('    %08X +%d  emu %s nat %s  (float %.9g / %.9g)'
+                    % (va, n, words[0].hex(), words[1].hex(), fe, fn))
+            else:
+                say('    %08X +%d' % (va, n))
     if a.writers:
         import collections
         hist = collections.Counter()
-        for va, n in cls['both'] + cls['emu']:
+        for va, n, _w in cls['both'] + cls['emu']:
             for k in range(n):
                 hist[writer.get(va + k, 0)] += 1
         say('writers of differing bytes (emulator, original code):')
@@ -328,7 +395,7 @@ def main():
     # Machine-readable runs for further analysis.
     with open(a.dir / 'runs.txt', 'w') as f:
         for kind, runs in cls.items():
-            for va, n in runs:
+            for va, n, _w in runs:
                 f.write('%s %08X %d\n' % (kind, va, n))
 
 

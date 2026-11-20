@@ -106,6 +106,115 @@ static LONG CALLBACK dt_wp_veh(PEXCEPTION_POINTERS ep)
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
+/* RECOMP_DIFFTEST_BATCH=1: test many functions in one run, one at a time.
+ * The first call of each function not yet tested (and not listed in
+ * RECOMP_DIFFTEST_SKIP, hex VAs one per line) after RECOMP_DIFFTEST_AFTER
+ * seconds is snapshotted into RECOMP_DIFFTEST_DIR as above, then
+ * <dir>/ready is written (holding the VA). Nothing more is snapshotted until
+ * a harness (tools/difftest_batch.py) has emulated it and removed ready;
+ * the game runs on meanwhile. A call that has not returned after 30 s (a
+ * loop that runs for ever) is given up. */
+#define DT_BITS (0x00200000u >> 2)          /* functions start below 2 MB */
+static int s_batch;
+static uint8_t *s_tested;                   /* bit per 4-byte-aligned... per VA */
+static int s_b_state;                       /* 0 idle, 1 in the call, 2 waiting */
+static ULONGLONG s_b_since, s_b_check;
+static uint32_t s_b_esp;
+
+static int dt_tested(uint32_t va)
+{
+    return va >= 0x00200000u || (s_tested[va >> 3] >> (va & 7)) & 1;
+}
+static void dt_mark(uint32_t va)
+{
+    if (va < 0x00200000u)
+        s_tested[va >> 3] |= (uint8_t)(1u << (va & 7));
+}
+
+static void dt_batch_init(void)
+{
+    const char *skip = getenv("RECOMP_DIFFTEST_SKIP");
+    FILE *f;
+    char line[64];
+    int n = 0;
+    s_tested = (uint8_t *)calloc(0x00200000u / 8, 1);
+    if (!s_tested) { s_batch = 0; return; }
+    if (skip && (f = fopen(skip, "r")) != NULL) {
+        while (fgets(line, sizeof line, f)) {
+            uint32_t va = (uint32_t)strtoul(line, NULL, 16);
+            if (va) { dt_mark(va); n++; }
+        }
+        fclose(f);
+    }
+    fprintf(stderr, "[DIFFTEST] batch mode, %d functions skipped -> %s\n", n, s_dir);
+}
+
+static void dt_dump(const char *tag);
+
+/* 1: snapshot this call (post follows). */
+static int dt_batch_pre(uint32_t va)
+{
+    ULONGLONG now;
+    if (s_b_state == 1) {
+        if (GetTickCount64() - s_b_since > 30000) {
+            fprintf(stderr, "[DIFFTEST] 0x%08X has not returned in 30 s: given up\n", s_va);
+            s_b_state = 0;
+        }
+        return 0;
+    }
+    if (dt_tested(va))
+        return 0;
+    now = GetTickCount64();
+    if (now - s_start < s_after_ms)
+        return 0;
+    if (s_b_state == 2) {
+        char path[600];
+        if (now - s_b_check < 50)
+            return 0;
+        s_b_check = now;
+        snprintf(path, sizeof path, "%s\\ready", s_dir);
+        if (GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES)
+            return 0;
+        s_b_state = 0;
+    }
+    /* Two threads can get here at once: one snapshot at a time. */
+    {
+        static volatile LONG lock;
+        if (InterlockedCompareExchange(&lock, 1, 0) != 0)
+            return 0;
+        if (s_b_state != 0 || dt_tested(va)) {
+            InterlockedExchange(&lock, 0);
+            return 0;
+        }
+        s_b_state = 1;
+        InterlockedExchange(&lock, 0);
+    }
+    dt_mark(va);
+    s_va = va;
+    s_thread = GetCurrentThreadId();
+    s_b_esp = g_esp;
+    dt_dump("pre");
+    s_b_state = 1;
+    s_b_since = GetTickCount64();
+    return 1;
+}
+
+static void dt_batch_post(uint32_t va)
+{
+    char path[600];
+    FILE *f;
+    if (s_b_state != 1 || va != s_va || GetCurrentThreadId() != s_thread)
+        return;
+    dt_dump("post");
+    snprintf(path, sizeof path, "%s\\ready", s_dir);
+    if ((f = fopen(path, "w")) != NULL) {
+        fprintf(f, "%08X\n", va);
+        fclose(f);
+    }
+    s_b_state = 2;
+    s_b_check = GetTickCount64();
+}
+
 static uint32_t s_trace_va;
 static int s_trace_all;
 static FILE *s_trace_exit;
@@ -148,6 +257,17 @@ static void dt_dump(const char *tag)
                    "esp=%08X\nva=%08X\nreturn=%08X\nfp_top=%d\n",
                 g_eax, g_ebx, g_ecx, g_edx, g_esi, g_edi, g_esp, s_va,
                 MEM32(g_esp), g_fp_top);
+        /* The x87 state as the recompiled code keeps it (physical registers,
+         * doubles): the math helpers take their arguments in ST0. */
+        {
+            int k;
+            for (k = 0; k < 8; k++) {
+                uint64_t bits;
+                memcpy(&bits, &g_fp_stack[k], 8);
+                fprintf(f, "fp%d=%016llX\n", k, (unsigned long long)bits);
+            }
+            fprintf(f, "fp_cw=%04X\n", (unsigned)g_fp_control_word);
+        }
         fclose(f);
     }
     snprintf(path, sizeof path, "%s\\%s-mem.bin", s_dir, tag);
@@ -179,6 +299,9 @@ int recomp_difftest_pre(uint32_t va)
             s_trace_va = tv && !s_trace_all ? (uint32_t)strtoul(tv, NULL, 16) : 0;
         }
         snprintf(s_dir, sizeof s_dir, "%s", d ? d : ".");
+        s_batch = getenv("RECOMP_DIFFTEST_BATCH") != NULL;
+        if (s_batch)
+            dt_batch_init();
         if (s_va)
             fprintf(stderr, "[DIFFTEST] watching 0x%08X, call %u -> %s\n",
                     s_va, s_nth, s_dir);
@@ -210,6 +333,8 @@ int recomp_difftest_pre(uint32_t va)
         }
         return 0;
     }
+    if (s_batch)
+        return dt_batch_pre(va);
     if (s_done || !s_va || va != s_va)
         return 0;
     if (GetTickCount64() - s_start < s_after_ms)
@@ -257,6 +382,10 @@ int recomp_difftest_pre(uint32_t va)
 
 void recomp_difftest_post(uint32_t va)
 {
+    if (s_batch) {
+        dt_batch_post(va);
+        return;
+    }
     if (va == s_trace_va && s_trace_depth > 0) {
         /* exit of a traced call: the 8x8 block at arg1 (stride arg2) and the
          * frame below the entry esp, where its temporaries still lie. */
