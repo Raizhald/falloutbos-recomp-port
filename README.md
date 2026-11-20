@@ -92,6 +92,3 @@ For developers (building by hand, debugging switches, how it works):
 MIT, see [LICENSE](LICENSE). It covers the code in this repository only.
 Fallout: Brotherhood of Steel and its data belong to their owners; nothing from the
 game is in this repository.
-
-Based on [falloutbos-recomp](https://github.com/sp00nznet/falloutbos-recomp) and
-[xboxrecomp](https://github.com/sp00nznet/xboxrecomp) by sp00nznet.
