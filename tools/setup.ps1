@@ -13,8 +13,9 @@ $ErrorActionPreference = 'Stop'
 $Root    = Split-Path -Parent $PSScriptRoot
 $Log     = Join-Path $Root 'setup.log'
 $Toolkit = Join-Path $Root 'deps\xboxrecomp'
-# The toolkit branch with this port's fixes; main once xboxrecomp #226-#228 merge.
-$ToolkitRef = 'work/falloutbos'
+# The toolkit with this port's runtime (GPU renderer, widescreen, mouse...).
+$ToolkitUrl = 'https://github.com/Raizhald/xboxrecomp-port'
+$ToolkitRef = 'main'
 Set-Location $Root
 "=== setup $(Get-Date -Format s) ===" | Out-File $Log -Append -Encoding utf8
 
@@ -66,7 +67,7 @@ if (-not (Test-Path $bash)) { Fail "Git's bash.exe was not found next to git; re
 
 # ---- 2. toolkit ----------------------------------------------------------------
 if (-not (Test-Path (Join-Path $Toolkit '.git'))) {
-    Run "fetching the xboxrecomp toolkit ($ToolkitRef)" { git clone --branch $ToolkitRef https://github.com/sp00nznet/xboxrecomp $Toolkit }
+    Run "fetching the xboxrecomp toolkit" { git clone --branch $ToolkitRef $ToolkitUrl $Toolkit }
 } else { Say "Toolkit already present: $Toolkit" }
 
 # ---- 3. your disc --------------------------------------------------------------
@@ -74,9 +75,15 @@ if (-not (Test-Path (Join-Path $Root 'game\default.xbe'))) {
     $iso = Get-ChildItem -Path $Root, "$env:USERPROFILE\Downloads" -Filter '*.iso' -ErrorAction SilentlyContinue |
            Where-Object { $_.Name -match 'Fallout' -and $_.Name -match 'Brotherhood' } | Select-Object -First 1
     if ($iso -and (Ask "Use this disc image: $($iso.FullName)?")) { $path = $iso.FullName }
-    else { $path = (Read-Host "Path to your Fallout: Brotherhood of Steel (USA) .iso").Trim('"') }
-    if (-not (Test-Path $path)) { Fail "no disc image at '$path'." }
-    Run 'unpacking your disc into game\' { Push-Location $Toolkit; py -3 -m tools.xiso unpack $path -o (Join-Path $Root 'game'); $c = $LASTEXITCODE; Pop-Location; $global:LASTEXITCODE = $c }
+    else { $path = (Read-Host "Path to your Fallout: Brotherhood of Steel (USA) .iso, or to a folder with its files (default.xbe)").Trim('"') }
+    if (-not (Test-Path $path)) { Fail "nothing at '$path'." }
+    if ((Test-Path $path -PathType Container)) {
+        # An already unpacked disc: copy it in.
+        if (-not (Test-Path (Join-Path $path 'default.xbe'))) { Fail "'$path' has no default.xbe; point to the folder the disc was unpacked into." }
+        Run 'copying your game files into game\' { robocopy $path (Join-Path $Root 'game') /E /NFL /NDL /NJH /NJS | Out-Null; $global:LASTEXITCODE = [int]($LASTEXITCODE -ge 8) }
+    } else {
+        Run 'unpacking your disc into game\' { Push-Location $Toolkit; py -3 -m tools.xiso unpack $path -o (Join-Path $Root 'game'); $c = $LASTEXITCODE; Pop-Location; $global:LASTEXITCODE = $c }
+    }
 } else { Say "Disc already unpacked into game\" }
 
 # ---- 4. generate the C ---------------------------------------------------------
@@ -91,6 +98,21 @@ if (-not (Test-Path (Join-Path $Root 'bin\fbos.exe'))) {
     Run 'building (several minutes; your machine will be busy)' { cmake --build build-msvc --config Release }
 } else { Say "Already built: bin\fbos.exe" }
 
+# ---- 6. shortcuts -------------------------------------------------------------
+$desk = [Environment]::GetFolderPath('Desktop')
+if (-not (Test-Path (Join-Path $desk 'Fallout Brotherhood of Steel.lnk')) -and
+    (Ask "Put 'Fallout Brotherhood of Steel' and its Settings on the desktop?")) {
+    $sh = New-Object -ComObject WScript.Shell
+    foreach ($l in @(@('Fallout Brotherhood of Steel', 'Play.cmd'), @('Fallout Brotherhood of Steel - Settings', 'Settings.cmd'))) {
+        $lnk = $sh.CreateShortcut((Join-Path $desk "$($l[0]).lnk"))
+        $lnk.TargetPath = Join-Path $Root $l[1]
+        $lnk.WorkingDirectory = $Root
+        $lnk.IconLocation = "$env:SystemRoot\System32\shell32.dll,137"
+        $lnk.Save()
+    }
+    Say "Shortcuts are on the desktop."
+}
+
 Say ""
-Say "Done. Double-click Play.cmd in $Root to start the game."
-Read-Host "Press Enter to close"
+Say "Done. Start the game with Play.cmd (Settings.cmd for resolution, widescreen, controls)."
+if (Ask "Start the game now?") { Start-Process -FilePath (Join-Path $Root 'Play.cmd') -WorkingDirectory $Root }

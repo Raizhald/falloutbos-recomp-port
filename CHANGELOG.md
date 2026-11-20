@@ -5,6 +5,19 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 
 ## [Unreleased]
 
+### Added (player-facing, November 2026)
+- One-click `Setup.cmd` (also takes an unpacked game folder, makes desktop
+  shortcuts) and `Update.cmd`; `Settings.cmd` options window.
+- Direct3D 11 renderer: up to 4x resolution, v-sync, full screen.
+- Widescreen 16:9 / 16:10 / 21:9 (Hor+, wider culling).
+- Texture filtering: mipmaps, bicubic.
+- Mouse and keyboard with mouse aim and a sight, keys in `mkb.ini`.
+- Player silhouette behind walls.
+- Fixed: Bink video artifacts (lifter: `movsx` of `bp`/`sp`).
+- README rewritten for players; developer notes moved to `docs/development.md`.
+
+### Earlier
+
 ### Added
 - Project from the xboxrecomp new-game template and the Half-Life 2 port's
   layout: `regen.sh`, CMake, `main.c`, netlab recipe `falloutbos-recomp`.
