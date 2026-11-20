@@ -1,5 +1,29 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- mkb-update -->
+## 20. 11.: myš a klávesnice (`mkb.ini`, Settings „Controls“)
+
+Výchozí rozložení hry (Options > Controls, přečteno přes `tools/menu_peek.py`
+-- skriptované procházení menu se snímkem každou sekundu, `--carbon` začne
+novou hru): A útok, B speciální útok, X akce (mluvit/otevřít), Y skok/úhyb,
+LT stimpak, RT zaměření, white/black další/předchozí zbraň, d-pad dolů
+přikrčení, d-pad vlevo/vpravo režim mapy, Back inventář, Start pauza, levá
+páčka pohyb, pravá páčka kamera.
+`deps/xboxrecomp/src/input/mkb_input.c`: vazby z konfigurace (`vstup = cíl`,
+první vazba nahradí vestavěné FPS rozložení), `mouse = aim|drag|off`
+(`drag_button`, `drag_y`), modifikátor `walk`, kolečko jako krátké stisky ve
+frontě, klik kratší než snímek se nezahodí (dřív se tlačítka myši mazala každý
+poll, takže držení RT nefungovalo), klávesy i na pravou páčku.
+`mkb.ini` (kořen projektu): WASD pohyb, Shift chůze, LMB útok, RMB držet
+zaměření, F/Mouse4 speciál, Space skok, Q stimpak, kolečko/R zbraně, C/Ctrl
+přikrčení, E akce, prostřední tlačítko + tah myší nebo Z/X kamera, M/N mapa,
+Tab/I inventář, Esc pauza, Enter/Backspace potvrdit/zpět v menu, F9 uvolní myš.
+`Play.cmd`: `Controls=MouseKeyboard` (výchozí, i bez klíče) nebo `Keyboard`
+(staré rozložení `RECOMP_KEYBOARD`). Ovladač funguje dál souběžně.
+Ověřeno: sestavení, načtení konfigurace bez neznámých klíčů, hra do Carbonu.
+Skutečnou myš headless harness neumí -- ověřit ručně.
+<!-- /mkb-update -->
+
 <!-- widescreen-update -->
 ## 20. 11.: širokoúhlý obraz (`RECOMP_WIDESCREEN`, Settings „Aspect ratio“)
 

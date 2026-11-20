@@ -1,6 +1,7 @@
 @echo off
-rem Start the recompiled game in a window. An XInput pad is player 1; the
-rem keyboard also works (WASD, Z/X/C/V = A/B/X/Y, Enter = Start).
+rem Start the recompiled game in a window. An XInput pad is player 1; mouse
+rem and keyboard work too (keys in mkb.ini; Controls=Keyboard in settings.ini
+rem gives the old keyboard-only layout: WASD, Z/X/C/V = A/B/X/Y, Enter = Start).
 rem F11 or Alt+Enter toggles full screen.
 rem Options come from settings.ini -- change them with Settings.cmd.
 setlocal
@@ -10,7 +11,10 @@ for /f "usebackq eol=; tokens=1,* delims==" %%a in ("settings.ini") do set "CFG_
 if defined FBOS_FORCE_GPU set "CFG_Renderer=GPU"
 set RECOMP_PB_EXEC=1
 set RECOMP_FB_WINDOW=1
-set RECOMP_KEYBOARD=1
+if not defined CFG_Controls set "CFG_Controls=MouseKeyboard"
+set "RECOMP_KEYBOARD="
+set "RECOMP_MKB="
+if /i "%CFG_Controls%"=="Keyboard" (set "RECOMP_KEYBOARD=1") else (set "RECOMP_MKB=1" & set "RECOMP_MKB_INI=%CD%\mkb.ini")
 if /i "%CFG_Renderer%"=="GPU" (set "RECOMP_GPU_BACKEND=0") else (set "RECOMP_GPU_BACKEND=")
 if defined CFG_ResolutionScale set "RECOMP_GPU_SCALE=%CFG_ResolutionScale%"
 if defined CFG_TextureFilter set "RECOMP_GPU_TEXFILTER=%CFG_TextureFilter%"
@@ -39,6 +43,8 @@ exit /b %errorlevel%
   echo Fullscreen=0
   echo WindowScale=2
   echo FPSLimit=60
+  echo [Input]
+  echo Controls=MouseKeyboard
   echo [Audio]
   echo Mute=0
 )

@@ -8,7 +8,7 @@ $ini  = Join-Path $root 'settings.ini'
 
 $cfg = [ordered]@{
     Renderer = 'GPU'; ResolutionScale = '2'; TextureFilter = '2'; AspectRatio = '16:9'; VSync = '1'; Fullscreen = '0'
-    WindowScale = '2'; FPSLimit = '60'; Mute = '0'
+    WindowScale = '2'; FPSLimit = '60'; Controls = 'MouseKeyboard'; Mute = '0'
 }
 if (Test-Path $ini) {
     foreach ($line in Get-Content $ini) {
@@ -28,6 +28,8 @@ function Save-Settings {
         "Fullscreen=$($cfg.Fullscreen)"
         "WindowScale=$($cfg.WindowScale)"
         "FPSLimit=$($cfg.FPSLimit)"
+        '[Input]'
+        "Controls=$($cfg.Controls)"
         '[Audio]'
         "Mute=$($cfg.Mute)"
     )
@@ -104,6 +106,11 @@ $vsync.AutoSize = $true
 $vsync.Checked = ($cfg.VSync -ne '0')
 Add-Row 'Sync' $vsync
 
+$controlsValues = @('MouseKeyboard', 'Keyboard')
+$controls = New-Combo @('Mouse and keyboard (keys in mkb.ini)', 'Keyboard only (classic)') `
+                      ([Math]::Max(0, [Array]::IndexOf($controlsValues, $cfg.Controls)))
+Add-Row 'Controls' $controls
+
 $mute = New-Object System.Windows.Forms.CheckBox
 $mute.Text = 'Mute sound'
 $mute.AutoSize = $true
@@ -118,6 +125,9 @@ $note.Margin = New-Object System.Windows.Forms.Padding(3, 12, 3, 6)
 $note.Text = "Resolution, texture filtering, aspect ratio and V-Sync need the graphics card renderer. " +
              "Widescreen shows more of the world at the sides; menus, movies and the HUD stay 4:3. " +
              "In game, F11 or Alt+Enter switches between window and full screen. " +
+             "Mouse and keyboard: WASD move, left click attack, right click target lock, " +
+             "Space jump, E talk/open, F special, Q stimpak, wheel weapons, " +
+             "middle mouse drag turns the camera, Tab inventory, Esc pause; F9 frees the mouse. " +
              "The window shrinks to fit the screen if it is too large."
 $grid.Controls.Add($note)
 $grid.SetColumnSpan($note, 2)
@@ -157,6 +167,7 @@ function Read-Form {
     $cfg.WindowScale     = [string]($win.SelectedIndex + 1)
     $cfg.FPSLimit        = $fpsValues[$fps.SelectedIndex]
     $cfg.VSync           = $(if ($vsync.Checked) { '1' } else { '0' })
+    $cfg.Controls        = $controlsValues[$controls.SelectedIndex]
     $cfg.Mute            = $(if ($mute.Checked) { '1' } else { '0' })
 }
 
