@@ -7,7 +7,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $ini  = Join-Path $root 'settings.ini'
 
 $cfg = [ordered]@{
-    Renderer = 'GPU'; ResolutionScale = '2'; VSync = '1'; Fullscreen = '0'
+    Renderer = 'GPU'; ResolutionScale = '2'; TextureFilter = '2'; VSync = '1'; Fullscreen = '0'
     WindowScale = '2'; FPSLimit = '60'; Mute = '0'
 }
 if (Test-Path $ini) {
@@ -22,6 +22,7 @@ function Save-Settings {
         '[Video]'
         "Renderer=$($cfg.Renderer)"
         "ResolutionScale=$($cfg.ResolutionScale)"
+        "TextureFilter=$($cfg.TextureFilter)"
         "VSync=$($cfg.VSync)"
         "Fullscreen=$($cfg.Fullscreen)"
         "WindowScale=$($cfg.WindowScale)"
@@ -76,6 +77,9 @@ $res = New-Combo @('1x - 640 x 480 (original)', '2x - 1280 x 960', '3x - 1920 x 
                    '4x - 2560 x 1920') ([int]$cfg.ResolutionScale - 1)
 Add-Row 'Resolution' $res
 
+$tex = New-Combo @('Original', 'Smooth (mipmaps)', 'Best (smooth + bicubic)') ([int]$cfg.TextureFilter)
+Add-Row 'Texture filtering' $tex
+
 $mode = New-Combo @('Window', 'Full screen') ([int]($cfg.Fullscreen -eq '1'))
 Add-Row 'Display mode' $mode
 
@@ -104,7 +108,7 @@ $note.AutoSize = $true
 $note.MaximumSize = New-Object System.Drawing.Size(420, 0)
 $note.ForeColor = [System.Drawing.Color]::DimGray
 $note.Margin = New-Object System.Windows.Forms.Padding(3, 12, 3, 6)
-$note.Text = "Resolution and V-Sync need the graphics card renderer. " +
+$note.Text = "Resolution, texture filtering and V-Sync need the graphics card renderer. " +
              "In game, F11 or Alt+Enter switches between window and full screen. " +
              "The window shrinks to fit the screen if it is too large."
 $grid.Controls.Add($note)
@@ -113,6 +117,7 @@ $grid.SetColumnSpan($note, 2)
 function Update-Enabled {
     $gpu = ($renderer.SelectedIndex -eq 0)
     $res.Enabled = $gpu
+    $tex.Enabled = $gpu
     $vsync.Enabled = $gpu
 }
 $renderer.Add_SelectedIndexChanged({ Update-Enabled })
@@ -137,6 +142,7 @@ function New-Button($text) {
 function Read-Form {
     $cfg.Renderer        = $(if ($renderer.SelectedIndex -eq 0) { 'GPU' } else { 'Software' })
     $cfg.ResolutionScale = [string]($res.SelectedIndex + 1)
+    $cfg.TextureFilter   = [string]$tex.SelectedIndex
     $cfg.Fullscreen      = [string]$mode.SelectedIndex
     $cfg.WindowScale     = [string]($win.SelectedIndex + 1)
     $cfg.FPSLimit        = $fpsValues[$fps.SelectedIndex]

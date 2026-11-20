@@ -1,5 +1,32 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- texfilter-update -->
+## 20. 11.: filtrování textur (`RECOMP_GPU_TEXFILTER`, Settings „Texture filtering“)
+
+Zjištění (statistika navázání textur v Carbonu): všechno kreslí vertex
+programy + kombinéry; hra chce `02022000` (bilineární, ~33 000 navázání,
+typicky 32x32 -- zem), `01012000` (nejbližší, ~12 000, 256x8 -- HUD
+proužky) a `04072000` (MAG 4 / MIN 7 = konvoluční/Gaussův filtr NV2A, render
+target s AA 1280x480). Kostičkovaná zem není chybějící filtr, ale nízké
+rozlišení textury.
+`nv2a_backend_d3d11.c`:
+- **oprava:** konvoluční filtr (MAG 4, MIN 7) se dřív vzorkoval nejbližším
+  texelem, nyní lineárně (všechny režimy);
+- `0` Original (výchozí v EXE, benchmarky beze změny); `1` Smooth: co hra
+  filtruje lineárně, má mipmapy (`GenerateMips`) a trilineární filtr; `2` Best:
+  navíc bikubické (B-spline, 4 bilineární vzorky) zvětšování; co hra chce
+  nejbližší (HUD, tabulky) a render targety zůstává beze změny;
+- shader: `SampleGrad` s derivacemi spočítanými na začátku PS (`suv`),
+  `bicubic()` jen při zvětšení (stopa < 1 texel);
+- `D3D11_FILTER_ANISOTROPIC` zkoušen: na RTX 5070 Laptop zvětšoval nejbližším
+  texelem -> nepoužit;
+- `RECOMP_GPU_RT_DUMP=<dir>`, `RECOMP_GPU_RT_DUMP_AT=<s,...>`: uložení plného
+  (škálovaného) render targetu bez okna -- srovnání nastavení na pozadí.
+Ověřeno: `build/texf3-rt0/1/2` (Carbon, 3x), `build/texf-compare3.png`;
+testy back endu OK; benchmark 3x + Best `build/texf-bench` 100.1 FPS, vše OK.
+`Play.cmd`/`settings.ini`: `TextureFilter=0|1|2` (výchozí 2).
+<!-- /texfilter-update -->
+
 <!-- maintenance-update -->
 ## 19. 11. večer: údržba a průzkum překladu
 

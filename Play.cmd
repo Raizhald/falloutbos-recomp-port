@@ -13,6 +13,7 @@ set RECOMP_FB_WINDOW=1
 set RECOMP_KEYBOARD=1
 if /i "%CFG_Renderer%"=="GPU" (set "RECOMP_GPU_BACKEND=0") else (set "RECOMP_GPU_BACKEND=")
 if defined CFG_ResolutionScale set "RECOMP_GPU_SCALE=%CFG_ResolutionScale%"
+if defined CFG_TextureFilter set "RECOMP_GPU_TEXFILTER=%CFG_TextureFilter%"
 if defined CFG_VSync set "RECOMP_VSYNC=%CFG_VSync%"
 if defined CFG_Fullscreen set "RECOMP_FULLSCREEN=%CFG_Fullscreen%"
 if defined CFG_WindowScale set "RECOMP_WINDOW_SCALE=%CFG_WindowScale%"
@@ -27,6 +28,7 @@ exit /b %errorlevel%
   echo [Video]
   echo Renderer=GPU
   echo ResolutionScale=2
+  echo TextureFilter=2
   echo VSync=1
   echo Fullscreen=0
   echo WindowScale=2
