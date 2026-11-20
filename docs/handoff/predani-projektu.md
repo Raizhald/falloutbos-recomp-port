@@ -1,5 +1,30 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- aim-update -->
+## 20. 11.: míření myší (`src/game/aim.c`, `mkb.ini` `mouse = cursor`)
+
+Proměnné hry nalezené porovnáním výpisů RAM (`RECOMP_MEMDUMP_DIR` v back endu:
+soubor `<dir>/req` se jménem → `<dir>/<jméno>.bin`, 64 MB; `menu_peek.py`
+krok `dump=JMÉNO`) při otáčení postavy a kamery v Carbonu:
+- `0x005502E8` ovladač hráče 1 → objekt hráče (`0x5CB840`; objekt+0xD8 ukazuje
+  zpět na `0x550060`), objekt+0xE0 pozice x,y,z (z = výška), objekt+0xF0
+  natočení (16bit binární úhel, směr = (cos, sin)); `0x550470` poslední směr
+  pohybu; kamera: rotace 3x3 `0x27E6B0`, posun `0x27E6D4` (v = p·R + t,
+  x vpravo, y dolů, z dopředu), yaw `0x27E67A`; FOV svisle `0x5D4250` (52°).
+- `aim.c`: kurzor → paprsek kamerou → rovina země ve výšce hráče → úhel do
+  objekt+0xF0. Kdy: při útoku (vazba na `a`/`b`), nebo když se kurzor pohnul
+  a hráč nechodí; chůze drží vlastní natočení hry; při zaměření (RT) nic.
+  Zapisuje až 2 s po stabilním objektu hráče (ne během načítání).
+- toolkit `mkb_input.c`: `mouse = cursor` (viditelný kurzor omezený na okno,
+  hák `mkb_set_cursor_hook`, `mkb_target_held`, test `RECOMP_MKB_CURSOR_TEST=x,y`),
+  prostřední tlačítko + tah dál otáčí kamerou.
+Ověřeno headless (`build/aimL|aimR|aimU`): kurzor vlevo/vpravo/nahoře →
+postava se natočí tam (snímky i paměť). Jednou (1 z 7 běhů, ještě s verzí bez
+2s pojistky) pád během načítání v `nv2a_pb_scan_segment` (čtení 0x85940590);
+příčina neověřena, další běhy čisté. Adresy jsou ze statických dat, takže by
+měly platit i v dalších úrovních -- ověřit hraním.
+<!-- /aim-update -->
+
 <!-- mkb-update -->
 ## 20. 11.: myš a klávesnice (`mkb.ini`, Settings „Controls“)
 

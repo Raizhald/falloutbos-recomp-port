@@ -5,6 +5,7 @@
 Step times are seconds after the main menu video (Main_Menu.bik) first
 appears in the log; until then Start is pressed every 2 s to skip the intro.
 With --carbon the steps count from 15 s after Carbon loads instead.
+A step "dump=NAME" saves guest RAM to build/NAME_DIR/NAME.bin (GPU back end).
 Frames go to build/NAME/frame-SSS.bmp (the presented 640x480 picture). For
 reading screens the harnesses cannot reach otherwise (options, controls).
 """
@@ -31,6 +32,7 @@ for s in filter(None, args.steps.split(',')):
     steps.append((float(t), b))
 env = dict(os.environ, RECOMP_PAD_SCRIPT='', RECOMP_PB_EXEC='1', RECOMP_AUDIO_MUTE='1',
            RECOMP_PAD_LIVE=str(cap / 'live.txt'),
+           RECOMP_MEMDUMP_DIR=str(cap),
            RECOMP_SAVE_DIR=str(cap / 'test-saves'),
            RECOMP_FB_PRESENT_DUMP=str(cap / 'latest.bmp'),
            RECOMP_FB_PRESENT_DUMP_EVERY='15')
@@ -72,7 +74,11 @@ with (cap / 'runtime.log').open('wb') as log:
                     next_start = el + 2
             else:
                 while steps and el >= menu_at + steps[0][0]:
-                    live.write(steps.pop(0)[1] + '\n'); live.flush()
+                    b = steps.pop(0)[1]
+                    if b.startswith('dump='):   # guest RAM -> NAME.bin (back end)
+                        (cap / 'req').write_text(b[5:] + '\n', encoding='ascii')
+                    else:
+                        live.write(b + '\n'); live.flush()
             if menu_at is not None and el >= next_cap:
                 try:
                     d = (cap / 'latest.bmp').read_bytes()

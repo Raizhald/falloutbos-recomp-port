@@ -125,7 +125,7 @@ $note.Margin = New-Object System.Windows.Forms.Padding(3, 12, 3, 6)
 $note.Text = "Resolution, texture filtering, aspect ratio and V-Sync need the graphics card renderer. " +
              "Widescreen shows more of the world at the sides; menus, movies and the HUD stay 4:3. " +
              "In game, F11 or Alt+Enter switches between window and full screen. " +
-             "Mouse and keyboard: WASD move, left click attack, right click target lock, " +
+             "Mouse and keyboard: WASD move, aim with the mouse, left click attack, right click target lock, " +
              "Space jump, E talk/open, F special, Q stimpak, wheel weapons, " +
              "middle mouse drag turns the camera, Tab inventory, Esc pause; F9 frees the mouse. " +
              "The window shrinks to fit the screen if it is too large."

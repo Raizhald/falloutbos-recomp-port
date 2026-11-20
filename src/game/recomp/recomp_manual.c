@@ -98,7 +98,7 @@ void sub_000A4E60(void)
 
 extern void sub_00086980_gen(void);
 
-static float fbos_ws_factor(void)
+float fbos_ws_factor(void)
 {
     static float f = -1.0f;
     if (f < 0.0f) {
