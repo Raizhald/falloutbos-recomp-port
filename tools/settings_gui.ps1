@@ -7,7 +7,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $ini  = Join-Path $root 'settings.ini'
 
 $cfg = [ordered]@{
-    Renderer = 'GPU'; ResolutionScale = '2'; TextureFilter = '2'; AspectRatio = '16:9'; VSync = '1'; Fullscreen = '0'
+    Renderer = 'GPU'; ResolutionScale = '2'; TextureFilter = '2'; AspectRatio = '16:9'; Silhouette = '1'; VSync = '1'; Fullscreen = '0'
     WindowScale = '2'; FPSLimit = '60'; Controls = 'MouseKeyboard'; Mute = '0'
 }
 if (Test-Path $ini) {
@@ -24,6 +24,7 @@ function Save-Settings {
         "ResolutionScale=$($cfg.ResolutionScale)"
         "TextureFilter=$($cfg.TextureFilter)"
         "AspectRatio=$($cfg.AspectRatio)"
+        "Silhouette=$($cfg.Silhouette)"
         "VSync=$($cfg.VSync)"
         "Fullscreen=$($cfg.Fullscreen)"
         "WindowScale=$($cfg.WindowScale)"
@@ -111,6 +112,12 @@ $controls = New-Combo @('Mouse and keyboard (keys in mkb.ini)', 'Keyboard only (
                       ([Math]::Max(0, [Array]::IndexOf($controlsValues, $cfg.Controls)))
 Add-Row 'Controls' $controls
 
+$sil = New-Object System.Windows.Forms.CheckBox
+$sil.Text = 'Show the player through walls'
+$sil.AutoSize = $true
+$sil.Checked = ($cfg.Silhouette -ne '0')
+Add-Row 'Silhouette' $sil
+
 $mute = New-Object System.Windows.Forms.CheckBox
 $mute.Text = 'Mute sound'
 $mute.AutoSize = $true
@@ -137,6 +144,7 @@ function Update-Enabled {
     $res.Enabled = $gpu
     $tex.Enabled = $gpu
     $aspect.Enabled = $gpu
+    $sil.Enabled = $gpu
     $vsync.Enabled = $gpu
 }
 $renderer.Add_SelectedIndexChanged({ Update-Enabled })
@@ -168,6 +176,7 @@ function Read-Form {
     $cfg.FPSLimit        = $fpsValues[$fps.SelectedIndex]
     $cfg.VSync           = $(if ($vsync.Checked) { '1' } else { '0' })
     $cfg.Controls        = $controlsValues[$controls.SelectedIndex]
+    $cfg.Silhouette      = $(if ($sil.Checked) { '1' } else { '0' })
     $cfg.Mute            = $(if ($mute.Checked) { '1' } else { '0' })
 }
 

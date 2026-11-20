@@ -1,5 +1,25 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- silhouette-update -->
+## 20. 11.: postava vidět za zdmi (`RECOMP_SILHOUETTE`, Settings „Silhouette“)
+
+- Hra (`src/game/aim.c`, `focus_hook`) dává back endu polohu hráče na
+  obrazovce a jeho vzdálenost (kamera `0x27E6B0`, objekt hráče přes
+  `0x5502E8`); toolkit `nv2a_backend_set_focus_hook`.
+- `nv2a_backend_d3d11.c`: dávka je hráč, když je neprůhledná, testuje
+  hloubku, kreslí se do snímku, je malá (<= 1/4 výšky), obsahuje bod hráče
+  a leží v jeho vzdálenosti (1/rhw ve [w-60, w+5]); naladěno přes
+  `RECOMP_FOCUS_DEBUG`. Hloubka má stencil (D32S8): každá dávka zapisující
+  hloubku značí viditelné pixely 1 (hráč) / 0 (ostatní). Dávky hráče se
+  uloží a před prvním kreslením bez testu hloubky (HUD), nebo při resolve,
+  se překreslí jednou barvou (výchozí `9050B0FF`, `RECOMP_SILHOUETTE_COLOR`)
+  s hloubkou GREATER a stencil != 1 -- jen kde ho něco zakrývá, ne kde
+  zakrývá sám sebe. `RECOMP_SILHOUETTE=2` (ladění) obarví celou postavu.
+- Ověřeno: `build/sil2` (výběr dávek = jen hráč), `build/sil3` snímek 27
+  (hráč za sloupem modře, viditelná část normálně). Kdo stojí těsně u hráče,
+  může dostat obrys taky. `Play.cmd`: `Silhouette=1` výchozí.
+<!-- /silhouette-update -->
+
 <!-- aim-update -->
 ## 20. 11.: míření myší (`src/game/aim.c`, `mkb.ini` `mouse = cursor`)
 

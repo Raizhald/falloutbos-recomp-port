@@ -18,6 +18,10 @@ if /i "%CFG_Controls%"=="Keyboard" (set "RECOMP_KEYBOARD=1") else (set "RECOMP_M
 if /i "%CFG_Renderer%"=="GPU" (set "RECOMP_GPU_BACKEND=0") else (set "RECOMP_GPU_BACKEND=")
 if defined CFG_ResolutionScale set "RECOMP_GPU_SCALE=%CFG_ResolutionScale%"
 if defined CFG_TextureFilter set "RECOMP_GPU_TEXFILTER=%CFG_TextureFilter%"
+rem Silhouette=1: the player shows through walls as a coloured outline.
+set "RECOMP_SILHOUETTE="
+if not defined CFG_Silhouette set "CFG_Silhouette=1"
+if "%CFG_Silhouette%"=="1" set "RECOMP_SILHOUETTE=1"
 rem AspectRatio 16:9 / 16:10 / 21:9 shows more of the world at the sides
 rem (graphics card renderer only); 4:3 is the original picture.
 set "RECOMP_WIDESCREEN="
@@ -39,6 +43,7 @@ exit /b %errorlevel%
   echo ResolutionScale=2
   echo TextureFilter=2
   echo AspectRatio=16:9
+  echo Silhouette=1
   echo VSync=1
   echo Fullscreen=0
   echo WindowScale=2

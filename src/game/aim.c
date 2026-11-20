@@ -33,6 +33,7 @@
 
 #include "recomp_types.h"
 #include "../input/mkb_input.h"
+#include "../kernel/nv2a_backend.h"
 
 #define CTL_PLAYER1   0x005502E8u
 #define CTL_BASE      0x00550060u
@@ -155,8 +156,52 @@ static void aim_hook(int active, float x, float y, float aspect)
     }
 }
 
+/* World point -> view space (x right, y down, z forward). */
+static void to_view(const float p[3], float v[3])
+{
+    int j;
+    for (j = 0; j < 3; j++)
+        v[j] = p[0] * MEMF(CAM_ROT + (uint32_t)j * 4u)
+             + p[1] * MEMF(CAM_ROT + 12u + (uint32_t)j * 4u)
+             + p[2] * MEMF(CAM_ROT + 24u + (uint32_t)j * 4u)
+             + MEMF(CAM_TRANS + (uint32_t)j * 4u);
+}
+
+/* For the back end (RECOMP_SILHOUETTE): where player 1 is on screen. The
+ * object's position is at its feet; the middle of the body is taken as
+ * PLAYER_HALF units up, the whole as twice that. */
+#define PLAYER_HALF 30.0f
+static int focus_hook(float out[4])
+{
+    uint32_t obj = MEM32(CTL_PLAYER1);
+    float p[3], v[3], top[3], vt[3], ty, tx, fov;
+    if (!ok_va(obj) || MEM32(obj + OBJ_CTL) != CTL_BASE)
+        return 0;
+    p[0] = MEMF(obj + OBJ_POS);
+    p[1] = MEMF(obj + OBJ_POS + 4);
+    p[2] = MEMF(obj + OBJ_POS + 8) + PLAYER_HALF;
+    if (!(fabsf(p[0]) < 1e6f && fabsf(p[1]) < 1e6f && fabsf(p[2]) < 1e6f))
+        return 0;
+    fov = MEMF(CAM_FOV_DEG);
+    if (!(fov > 10.0f && fov < 150.0f))
+        fov = 52.0f;
+    ty = tanf(fov * 0.5f * 3.14159265f / 180.0f);
+    tx = ty * 4.0f / 3.0f;
+    to_view(p, v);
+    if (!(v[2] > 1.0f))
+        return 0;
+    top[0] = p[0]; top[1] = p[1]; top[2] = p[2] + PLAYER_HALF;
+    to_view(top, vt);
+    out[0] = (v[0] / v[2] / tx + 1.0f) * 0.5f;
+    out[1] = (v[1] / v[2] / ty + 1.0f) * 0.5f;
+    out[2] = v[2];
+    out[3] = 2.0f * fabsf(vt[1] / vt[2] - v[1] / v[2]) / ty * 0.5f;
+    return 1;
+}
+
 void fbos_aim_init(void)
 {
+    nv2a_backend_set_focus_hook(focus_hook);
     const char *e = getenv("RECOMP_AIM");
     if (e && *e == '0')
         return;
