@@ -60,8 +60,8 @@ Keys can be changed in `mkb.ini`.
 - **Renderer** - graphics card (Direct3D 11, default) or software
 - **Resolution** - 1x to 4x the original 480 lines
 - **Texture filtering** - original, smooth or best (bicubic)
-- **Aspect ratio** - 4:3 (original), 16:9, 16:10, 21:9; widescreen shows more of the
-  world at the sides, menus and videos stay 4:3
+- **Aspect ratio** - 4:3 (original), 16:9, 16:10, 21:9 (widescreen is experimental:
+  indoors and in conversations the sides can stay black)
 - **Silhouette** - the player shows through walls
 - **Display mode, window size, frame rate limit, v-sync, controls, mute**
 
@@ -70,7 +70,7 @@ Keys can be changed in `mkb.ini`.
 Compared with the Xbox original:
 
 - **Graphics card renderer** (Direct3D 11) with higher resolutions, v-sync and full screen
-- **Widescreen** 16:9 / 16:10 / 21:9 with a wider view of the world
+- **Widescreen** 16:9 / 16:10 / 21:9 (experimental)
 - **Texture filtering** - mipmaps and bicubic smoothing
 - **Mouse and keyboard** - aiming with the mouse, rebindable keys
 - **Player silhouette** behind walls

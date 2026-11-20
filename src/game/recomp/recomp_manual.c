@@ -124,7 +124,13 @@ void sub_00086980(void)
     sub_00086980_gen();
     if (f <= 1.0f)
         return;
-    for (row = 0x005D4CF0u; row <= 0x005D4D00u; row += 0x10u) {
+    /* Two sets: 0x5D4CF0 and, built from the second angle, 0x5D4E10 (the
+     * camera of dialogues and scripted scenes). Left and right are the
+     * first two rows of each. */
+    static const uint32_t side[4] = { 0x005D4CF0u, 0x005D4D00u, 0x005D4E10u, 0x005D4E20u };
+    int k;
+    for (k = 0; k < 4; k++) {
+        row = side[k];
         float x = MEMF(row), y = MEMF(row + 4), z = MEMF(row + 8) * f;
         float n = sqrtf(x * x + y * y + z * z);
         if (n > 0.0f) {

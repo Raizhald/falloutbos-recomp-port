@@ -7,7 +7,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $ini  = Join-Path $root 'settings.ini'
 
 $cfg = [ordered]@{
-    Renderer = 'GPU'; ResolutionScale = '2'; TextureFilter = '2'; AspectRatio = '16:9'; Silhouette = '1'; VSync = '1'; Fullscreen = '0'
+    Renderer = 'GPU'; ResolutionScale = '2'; TextureFilter = '2'; AspectRatio = '4:3'; Silhouette = '1'; VSync = '1'; Fullscreen = '0'
     WindowScale = '2'; FPSLimit = '60'; Controls = 'MouseKeyboard'; Mute = '0'
 }
 if (Test-Path $ini) {
@@ -85,7 +85,7 @@ $tex = New-Combo @('Original', 'Smooth (mipmaps)', 'Best (smooth + bicubic)') ([
 Add-Row 'Texture filtering' $tex
 
 $aspectValues = @('4:3', '16:9', '16:10', '21:9')
-$aspect = New-Combo @('4:3 (original)', '16:9 (widescreen)', '16:10', '21:9 (ultrawide)') `
+$aspect = New-Combo @('4:3 (original)', '16:9 (experimental)', '16:10 (experimental)', '21:9 (experimental)') `
                     ([Array]::IndexOf($aspectValues, $cfg.AspectRatio))
 if ($aspect.SelectedIndex -lt 0) { $aspect.SelectedIndex = 0 }
 Add-Row 'Aspect ratio' $aspect
@@ -130,7 +130,7 @@ $note.MaximumSize = New-Object System.Drawing.Size(420, 0)
 $note.ForeColor = [System.Drawing.Color]::DimGray
 $note.Margin = New-Object System.Windows.Forms.Padding(3, 12, 3, 6)
 $note.Text = "Resolution, texture filtering, aspect ratio and V-Sync need the graphics card renderer. " +
-             "Widescreen shows more of the world at the sides; menus, movies and the HUD stay 4:3. " +
+             "Widescreen is experimental: indoors and in conversations parts of the picture at the sides can stay black. " +
              "In game, F11 or Alt+Enter switches between window and full screen. " +
              "Mouse and keyboard: WASD move, aim with the mouse, left click attack, right click target lock, " +
              "Space jump, E talk/open, F special, Q stimpak, wheel weapons, " +
