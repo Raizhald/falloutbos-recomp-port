@@ -115,8 +115,8 @@ it at a toolkit checkout other than `../xboxrecomp`. Entry tracing for
 bring-up: list addresses in `config/trace_functions.json` and run
 `TRACE_FUNCS=config/trace_functions.json ./regen.sh`.
 
-## License (of the original project)
+## License
 
-MIT, see [LICENSE](LICENSE). That covers the code in this repo only.
+MIT, see [LICENSE](../LICENSE). That covers the code in this repo only.
 Fallout: Brotherhood of Steel and its data belong to their owners; nothing from
 the game is in this repo, and the generated C is never committed.
