@@ -115,24 +115,6 @@ it at a toolkit checkout other than `../xboxrecomp`. Entry tracing for
 bring-up: list addresses in `config/trace_functions.json` and run
 `TRACE_FUNCS=config/trace_functions.json ./regen.sh`.
 
-Day-to-day builds go through [recomp-netlab](https://github.com/sp00nznet/recomp-netlab):
-`netlab build falloutbos-recomp` (recipe `projects/falloutbos-recomp.env`).
-The farm never sends `game/` or the disc image.
-
-### Upstream toolkit changes
-
-Found by the original port, each on its own branch in sp00nznet/xboxrecomp:
-
-| Branch | What |
-|---|---|
-| `fix/conformance-xbe-unimpl` ([#229](https://github.com/sp00nznet/xboxrecomp/pull/229)) | the real-title conformance harness builds on this game and no longer overruns on wide strings |
-| `fix/disasm-tables-in-code-sections` ([#227](https://github.com/sp00nznet/xboxrecomp/pull/227)) | function-pointer tables inside XDK code sections (D3D's render-state handlers) |
-| `fix/io-apc-delivery` ([#226](https://github.com/sp00nznet/xboxrecomp/pull/226)) | file I/O APC: restore esp after delivery; opt-in delivery at the next alertable wait |
-| `perf/raster-batch-rows` ([#228](https://github.com/sp00nznet/xboxrecomp/pull/228)) | rasterise a draw's triangles together on the worker pool: 5.5 → 15 fps in Carbon |
-| `perf/nv2a-quiet-poll` ([#230](https://github.com/sp00nznet/xboxrecomp/pull/230)) | no stderr line per pushbuffer kick under `RECOMP_PB_EXEC`: menus 20-22 → 25-28 fps |
-| `perf/raster-pipeline` ([#231](https://github.com/sp00nznet/xboxrecomp/pull/231), on #228) | batches drawn by the workers while the executor decodes the next: 15.5 → 17.4 fps in Carbon |
-| community PR #186 | `pushfd`/`popfd`/`cpuid` lifted as the hardware does them. Until it lands, `recomp_manual.c` overrides the one function that needs it |
-
 ## License (of the original project)
 
 MIT, see [LICENSE](LICENSE). That covers the code in this repo only.
