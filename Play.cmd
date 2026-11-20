@@ -14,6 +14,11 @@ set RECOMP_KEYBOARD=1
 if /i "%CFG_Renderer%"=="GPU" (set "RECOMP_GPU_BACKEND=0") else (set "RECOMP_GPU_BACKEND=")
 if defined CFG_ResolutionScale set "RECOMP_GPU_SCALE=%CFG_ResolutionScale%"
 if defined CFG_TextureFilter set "RECOMP_GPU_TEXFILTER=%CFG_TextureFilter%"
+rem AspectRatio 16:9 / 16:10 / 21:9 shows more of the world at the sides
+rem (graphics card renderer only); 4:3 is the original picture.
+set "RECOMP_WIDESCREEN="
+if not defined CFG_AspectRatio set "CFG_AspectRatio=16:9"
+if /i "%CFG_Renderer%"=="GPU" if not "%CFG_AspectRatio%"=="4:3" set "RECOMP_WIDESCREEN=%CFG_AspectRatio%"
 if defined CFG_VSync set "RECOMP_VSYNC=%CFG_VSync%"
 if defined CFG_Fullscreen set "RECOMP_FULLSCREEN=%CFG_Fullscreen%"
 if defined CFG_WindowScale set "RECOMP_WINDOW_SCALE=%CFG_WindowScale%"
@@ -29,6 +34,7 @@ exit /b %errorlevel%
   echo Renderer=GPU
   echo ResolutionScale=2
   echo TextureFilter=2
+  echo AspectRatio=16:9
   echo VSync=1
   echo Fullscreen=0
   echo WindowScale=2

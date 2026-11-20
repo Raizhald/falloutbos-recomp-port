@@ -1,5 +1,36 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- widescreen-update -->
+## 20. 11.: širokoúhlý obraz (`RECOMP_WIDESCREEN`, Settings „Aspect ratio“)
+
+Zjištění: hra příznak `XC_VIDEO_FLAGS_WIDESCREEN` ignoruje (snímky s ním i bez
+něj shodné; `kernel_xbox.c` má nově přepínač `RECOMP_VIDEO_WIDESCREEN=0` a
+log dotazu). Obraz je proto rozšířen v portu (Hor+: stejný svislý záběr, víc
+světa po stranách):
+- `nv2a_backend_d3d11.c`: render targety s 480 řádky a šířkou >= 4:3 (640x480
+  snímek, 1280x480 AA snímek) jsou `ew` = w * (poměr / (4/3)) pixelů široké,
+  hostův 4:3 obraz uprostřed (`ox`). Vertex shader posouvá x (`g_wsx`), ořez a
+  ClearView berou „skoro celou šířku“ (hra ořezává AA snímek na 1278) jako
+  celou šířku cíle, jinak se posouvají s obrazem. Čtyřúhelník přes celý snímek
+  bez 4:3 obrázku (stmívání, tónování, práce s rozšířeným snímkem) se roztáhne
+  na celou šířku; s texturou (Bink, pozadí menu) zůstane 4:3 uprostřed s
+  černými pruhy. Vzorkovaný rozšířený cíl má offset v `g_tscale.zw`.
+  Readback do paměti hosta = prostřední 4:3 výřez; `g_present` zobrazuje cíl v
+  jeho poměru stran. Bez proměnné se nic nemění (ověřeno 4:3 během).
+- `recomp_manual.c`: obal `sub_00086980` (+ `_gen`, regen) -- hra si staví
+  ořezové roviny kamery na `0x5D4CF0` (levá/pravá: z = tan(fov)*k, horní/dolní
+  tan*0.75); boční roviny se rozšíří stejným faktorem a znovu normalizují, jinak
+  by objekty u okrajů chyběly.
+- `fb_present.c`: okno se otevírá v daném poměru (854x480 krok pro 16:9).
+- `Play.cmd`/`Settings`: `AspectRatio=4:3|16:9|16:10|21:9`, výchozí 16:9
+  (i když klíč v settings.ini chybí), jen s GPU rendererem.
+Ověření bez okna (`RECOMP_GPU_RT_DUMP`): `build/ws-rt7` (16:9: intro, menu,
+výběr postavy, Carbon), `build/ws-rt219` (21:9), `build/ws-rt43` (4:3 beze
+změny); všechny běhy bez chyb, Carbon ~35 s.
+Omezení: HUD, menu a videa zůstávají 4:3 uprostřed (záměrně); se softwarovým
+rendererem se nerozšiřuje.
+<!-- /widescreen-update -->
+
 <!-- texfilter-update -->
 ## 20. 11.: filtrování textur (`RECOMP_GPU_TEXFILTER`, Settings „Texture filtering“)
 

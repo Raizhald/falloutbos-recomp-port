@@ -7,7 +7,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $ini  = Join-Path $root 'settings.ini'
 
 $cfg = [ordered]@{
-    Renderer = 'GPU'; ResolutionScale = '2'; TextureFilter = '2'; VSync = '1'; Fullscreen = '0'
+    Renderer = 'GPU'; ResolutionScale = '2'; TextureFilter = '2'; AspectRatio = '16:9'; VSync = '1'; Fullscreen = '0'
     WindowScale = '2'; FPSLimit = '60'; Mute = '0'
 }
 if (Test-Path $ini) {
@@ -23,6 +23,7 @@ function Save-Settings {
         "Renderer=$($cfg.Renderer)"
         "ResolutionScale=$($cfg.ResolutionScale)"
         "TextureFilter=$($cfg.TextureFilter)"
+        "AspectRatio=$($cfg.AspectRatio)"
         "VSync=$($cfg.VSync)"
         "Fullscreen=$($cfg.Fullscreen)"
         "WindowScale=$($cfg.WindowScale)"
@@ -73,17 +74,23 @@ $renderer = New-Combo @('Graphics card (Direct3D 11)', 'Software (CPU, slower)')
                       ($(if ($cfg.Renderer -ieq 'GPU') { 0 } else { 1 }))
 Add-Row 'Renderer' $renderer
 
-$res = New-Combo @('1x - 640 x 480 (original)', '2x - 1280 x 960', '3x - 1920 x 1440',
-                   '4x - 2560 x 1920') ([int]$cfg.ResolutionScale - 1)
+$res = New-Combo @('1x - 480 lines (original)', '2x - 960 lines', '3x - 1440 lines',
+                   '4x - 1920 lines') ([int]$cfg.ResolutionScale - 1)
 Add-Row 'Resolution' $res
 
 $tex = New-Combo @('Original', 'Smooth (mipmaps)', 'Best (smooth + bicubic)') ([int]$cfg.TextureFilter)
 Add-Row 'Texture filtering' $tex
 
+$aspectValues = @('4:3', '16:9', '16:10', '21:9')
+$aspect = New-Combo @('4:3 (original)', '16:9 (widescreen)', '16:10', '21:9 (ultrawide)') `
+                    ([Array]::IndexOf($aspectValues, $cfg.AspectRatio))
+if ($aspect.SelectedIndex -lt 0) { $aspect.SelectedIndex = 0 }
+Add-Row 'Aspect ratio' $aspect
+
 $mode = New-Combo @('Window', 'Full screen') ([int]($cfg.Fullscreen -eq '1'))
 Add-Row 'Display mode' $mode
 
-$win = New-Combo @('1x - 640 x 480', '2x - 1280 x 960', '3x - 1920 x 1440') ([int]$cfg.WindowScale - 1)
+$win = New-Combo @('1x - 480 lines', '2x - 960 lines', '3x - 1440 lines') ([int]$cfg.WindowScale - 1)
 Add-Row 'Window size' $win
 
 $fpsValues = @('30', '60', '120', '0')
@@ -108,7 +115,8 @@ $note.AutoSize = $true
 $note.MaximumSize = New-Object System.Drawing.Size(420, 0)
 $note.ForeColor = [System.Drawing.Color]::DimGray
 $note.Margin = New-Object System.Windows.Forms.Padding(3, 12, 3, 6)
-$note.Text = "Resolution, texture filtering and V-Sync need the graphics card renderer. " +
+$note.Text = "Resolution, texture filtering, aspect ratio and V-Sync need the graphics card renderer. " +
+             "Widescreen shows more of the world at the sides; menus, movies and the HUD stay 4:3. " +
              "In game, F11 or Alt+Enter switches between window and full screen. " +
              "The window shrinks to fit the screen if it is too large."
 $grid.Controls.Add($note)
@@ -118,6 +126,7 @@ function Update-Enabled {
     $gpu = ($renderer.SelectedIndex -eq 0)
     $res.Enabled = $gpu
     $tex.Enabled = $gpu
+    $aspect.Enabled = $gpu
     $vsync.Enabled = $gpu
 }
 $renderer.Add_SelectedIndexChanged({ Update-Enabled })
@@ -143,6 +152,7 @@ function Read-Form {
     $cfg.Renderer        = $(if ($renderer.SelectedIndex -eq 0) { 'GPU' } else { 'Software' })
     $cfg.ResolutionScale = [string]($res.SelectedIndex + 1)
     $cfg.TextureFilter   = [string]$tex.SelectedIndex
+    $cfg.AspectRatio     = $aspectValues[$aspect.SelectedIndex]
     $cfg.Fullscreen      = [string]$mode.SelectedIndex
     $cfg.WindowScale     = [string]($win.SelectedIndex + 1)
     $cfg.FPSLimit        = $fpsValues[$fps.SelectedIndex]

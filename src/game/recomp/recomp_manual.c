@@ -81,6 +81,60 @@ void sub_000A4E60(void)
     g_esp += 4;                                  /* ret */
 }
 
+/* ---------------------------------------------------------------------------
+ * sub_00086980 -- builds the camera's culling planes (wrapped).
+ *
+ * The title keeps six camera-space planes at 0x005D4CF0, 16 bytes apart:
+ * left and right first, (+-1, 0, tan(fov) * k), then top and bottom with
+ * tan(fov) * 0.75, near and far; the call per row normalises xyz. Objects
+ * outside are not drawn at all, so a wider picture (RECOMP_WIDESCREEN, which
+ * the GPU back end draws around the 4:3 frame) needs wider side planes or its
+ * edges stay empty. The side planes' z goes up by the same factor as the
+ * picture (4/3 for 16:9) and the rows are normalised again.
+ * ------------------------------------------------------------------------- */
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+
+extern void sub_00086980_gen(void);
+
+static float fbos_ws_factor(void)
+{
+    static float f = -1.0f;
+    if (f < 0.0f) {
+        const char *e = getenv("RECOMP_WIDESCREEN");
+        f = 1.0f;
+        if (e && *e && strcmp(e, "0") != 0) {
+            double a = 16.0 / 9.0;
+            const char *c = strchr(e, ':');
+            if (c && atof(e) > 0.0 && atof(c + 1) > 0.0)
+                a = atof(e) / atof(c + 1);
+            if (a > 4.0 / 3.0 + 0.01 && a < 4.0)
+                f = (float)(a * 0.75);
+        }
+    }
+    return f;
+}
+
+void sub_00086980(void)
+{
+    float f = fbos_ws_factor();
+    uint32_t row;
+
+    sub_00086980_gen();
+    if (f <= 1.0f)
+        return;
+    for (row = 0x005D4CF0u; row <= 0x005D4D00u; row += 0x10u) {
+        float x = MEMF(row), y = MEMF(row + 4), z = MEMF(row + 8) * f;
+        float n = sqrtf(x * x + y * y + z * z);
+        if (n > 0.0f) {
+            MEMF(row) = x / n;
+            MEMF(row + 4) = y / n;
+            MEMF(row + 8) = z / n;
+        }
+    }
+}
+
 /* ── Manual function overrides ─────────────────────────────── */
 
 /*
