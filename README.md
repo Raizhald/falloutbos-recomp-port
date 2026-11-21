@@ -49,7 +49,8 @@ An Xbox controller (XInput) works as on the console. Mouse and keyboard:
 | Free the mouse | F9 |
 | Full screen | F11 or Alt+Enter |
 
-Keys can be changed in `mkb.ini`.
+Holding attack keeps attacking, on the mouse and on a controller (`autofire` and
+`autofire_rate` in `mkb.ini`). Keys can be changed in `mkb.ini`.
 
 ## Settings
 
@@ -80,9 +81,21 @@ Compared with the Xbox original:
 
 ## Status
 
-Playable from the start through the first level (Carbon); the rest of the game has
-not been played through yet. Expect bugs - please report them in Issues with what
-you were doing.
+Early access. Played by hand from the start through Carbon and the raiders'
+warehouse; saving and loading work. All 53 levels of the game load and draw
+without errors in an automated tour, but the game has not been played through
+to the end yet.
+
+Known problems:
+
+- Widescreen is experimental: indoors and in conversations the sides can stay black.
+- One crash on entering the warehouse (once; it did not happen again).
+- On a laptop, set Windows to **Best performance** (Settings > System > Power) and
+  keep it plugged in: the game draws on the processor, and power saving halves
+  the frame rate.
+
+Found a bug? Open an Issue with what you were doing and attach `logs\last-run.log`
+(every run writes it; the run before is `logs\previous-run.log`).
 
 For developers (building by hand, debugging switches, how it works):
 [docs/development.md](docs/development.md).
