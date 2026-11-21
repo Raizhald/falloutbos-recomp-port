@@ -360,6 +360,20 @@ int main(int argc, char **argv)
 
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
+
+    /* Draw at the screen's real pixels. Without this, Windows set to 125 %
+     * or 150 % treats the game as an old program and stretches its finished
+     * window like a picture, which blurs everything (text and HUD most).
+     * Per-monitor v2 where Windows has it (10 1703+), system-wide before. */
+    {
+        typedef BOOL (WINAPI *SetCtx)(HANDLE);
+        SetCtx set = (SetCtx)(void *)GetProcAddress(GetModuleHandleA("user32.dll"),
+                                                    "SetProcessDpiAwarenessContext");
+        if (!getenv("RECOMP_DPI_UNAWARE")) {
+            if (!set || !set((HANDLE)(INT_PTR)-4))   /* PER_MONITOR_AWARE_V2 */
+                SetProcessDPIAware();
+        }
+    }
     /* Symbols up front: at fault time the process is already in a bad way,
      * and SymInitialize allocates. */
     SymSetOptions(SYMOPT_DEFERRED_LOADS | SYMOPT_UNDNAME | SYMOPT_LOAD_LINES);
