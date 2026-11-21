@@ -66,7 +66,7 @@ last one, show the HUD and no black wedge. There is no automated visual verdict.
 Performance remains about 16 FPS, and the movie artifacts/audio underruns remain.
 Evidence: `build/graphics-probe/` and `build/present-capture-verified/`.
 
-For a clean dependency checkout, use the patch and instructions under `patches/`.
+For a clean dependency checkout, use the patch and instructions under `docs/patches/`.
 The current executable includes this capture change. No public fork or upstream
 message has been created.
 

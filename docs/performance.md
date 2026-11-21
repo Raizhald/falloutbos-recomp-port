@@ -60,7 +60,7 @@ Výsledky: `vysledek-optimalizace.json`; jednotlivé vzorky a logy:
 `work/falloutbos/build/perf-*`. Reprodukce:
 
 ```powershell
-cd "C:\Users\sesta\Documents\Codex\2026-11-18\a\work\falloutbos"
+cd "%USERPROFILE%\Documents\Codex\2026-11-18\a\work\falloutbos"
 & "..\fbos-venv\Scripts\python.exe" tools/benchmark_runtime.py --name perf-vlastni
 ```
 

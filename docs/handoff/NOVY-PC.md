@@ -15,7 +15,7 @@ Tyto věci se na novém PC vytvoří znovu z tvého vlastního ISO.
 
 - Windows 10/11 x64, grafická karta s Direct3D 11.
 - Obraz disku `Fallout - Brotherhood of Steel (USA).xiso.iso`
-  (na starém PC v `C:\Users\sesta\Downloads\Fallout - Brotherhood of Steel (USA)\`).
+  (na starém PC v `%USERPROFILE%\Downloads\Fallout - Brotherhood of Steel (USA)\`).
   Ověření: `game/default.xbe` po rozbalení má SHA-256
   `9295b6e0cc70024392c34f2df8795e5d28c9592b9cda45853549029dd833919c`.
 - Git, Python 3 (`py`), Visual Studio 2022 Build Tools (C++), CMake.

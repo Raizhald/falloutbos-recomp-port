@@ -52,7 +52,7 @@ Patch: `xboxrecomp-swizzle-offset.patch`; výsledky:
 `vysledek-optimalizace-textur.json`. Benchmark a navazující herní test:
 
 ```powershell
-cd "C:\Users\sesta\Documents\Codex\2026-11-18\a\work\falloutbos"
+cd "%USERPROFILE%\Documents\Codex\2026-11-18\a\work\falloutbos"
 & '..\fbos-venv\Scripts\python.exe' tools/benchmark_runtime.py --name perf-novy-test --combat-after
 ```
 

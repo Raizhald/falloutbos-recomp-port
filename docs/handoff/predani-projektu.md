@@ -1,5 +1,79 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- handoff-2026-11-21 -->
+## Stav k 21. 11. 2026 večer (začni tady)
+
+**Kde to je.** Projekt: `%USERPROFILE%\Desktop\FLESKA-Fallout\falloutbos`
+(GitHub `Raizhald/falloutbos-recomp-port`), toolkit v `deps\xboxrecomp`
+(GitHub `Raizhald/xboxrecomp-port`, samostatný git). Python venv o složku výš:
+`..\fbos-venv`. Vygenerovaný C kód (`src/game/recomp/gen`) se necommituje,
+vytváří ho `regen.sh`.
+
+**Jak se tu pracuje (Claude bez přímého Windows shellu).** Úlohy se píšou jako
+`build\queue\<název>.cmd` (CRLF; první řádky `@echo off`, volitelně
+`rem timeout=<s>`, pak `cd /d "%~dp0..\..\.."`, protože se spouštějí z
+`build\queue\done\`). Spouští je `Fronta.cmd` v kořeni (uživatel ho musí mít
+zapnutý), log `build\queue\queue2.log` (`queue.log` zamykal keepawake).
+Build: kopie `build\queue\done\E0-build.cmd`. Commit+push: vzor
+`build\queue\done\I3-git.cmd` (user.name Raizhald, trailery Co-Authored-By).
+Pozor: běžící hra drží `bin\fbos.exe` -> link selže; před buildem ať
+uživatel hru zavře.
+
+**Co dnes přibylo (vše na GitHubu, ověřeno):**
+- Ovladač na herním portu 1 (`main.c`: `RECOMP_USB_NDP=4`, `RECOMP_USB_PORT=2`);
+  přímý skok do úrovně bez hlášky „reconnect controller“ (podrobně níže).
+- Projížďka všech 53 úrovní ve 4:3 (`tools/level_tour.py`): všechny se načtou
+  a vykreslí, 0 faultů. Snímky `build\levels\4x3\<DIR>\`, souhrn
+  `build\levels\results.jsonl`, náhled `build\levels\all-4x3.png`.
+- `Play.cmd` zapisuje každý běh do `logs\last-run.log` (předchozí
+  `previous-run.log`).
+- Autofire: `autofire = a`, `autofire_rate = 6` v `mkb.ini`; myš/klávesy i
+  skutečný ovladač (`mkb_autofire_pad` v toolkitu). Ověřil hráč na ovladači.
+- Ostrý obraz při měřítku Windows 125 %: proces je DPI aware (`main.c`,
+  `RECOMP_DPI_UNAWARE` vrátí staré chování). Hráč potvrdil ostřejší obraz.
+- README: early access, známé problémy, hlášení chyb s logem.
+- Zvuk: záznam 168 s (`RECOMP_AUDIO_WAV`) bez výpadků, lupanců a přebuzení,
+  0 starvation. DSP efekty (dozvuk) jsou v emulaci jen passthrough.
+
+**Výkon -- důležité.** Na notebooku uživatele v úsporném režimu napájení
+(„Vyvážené“, na baterii) hra jede ~33 FPS i v cutscéně; s „Nejlepším
+výkonem“ stabilních 60 (menu+Carbon min 59, cutscéna průměr 59 / min 53).
+Před každým měřením výkonu ověřit napájení.
+
+**Hraní uživatelem 21. 11.:** Carbon -> WARE_1 -> WARE_2 -> WARE_3 bez
+problému, ukládání i načítání funguje. Jeden pád ve skladu
+radškorpionů (16:22, ještě bez logu): 2 s po automatickém uložení se hra
+zacyklila (~1,1 mil. volání `ExQueryNonVolatileSetting` index 0xFF, tj.
+XQueryValue(XC_MAX_ALL) přes `sub_00095544` z `sub_00091084`) a skončila.
+Neopakovalo se; příčina neznámá. Při dalším pádu je v `logs\last-run.log`.
+
+**Otevřené (podle priority):**
+1. Čistá instalace `Setup.cmd` jako nový hráč (před zveřejněním).
+2. Pád ve skladu, pokud se zopakuje (log).
+3. 16:9: v interiérech a dialozích hra sama vyřazuje vše mimo 4:3 (jiná cesta
+   než `sub_00086980`); 16:9 s nastavením hráče nezměřeno.
+4. Ostřejší HUD/texty (jiný filtr pro UI), kooperace 2 hráčů, víc než 60 FPS
+   (zjistit, jestli logika nezávisí na snímcích).
+5. V historii gitu zůstávají staré cesty se jménem uživatele (v aktuálních
+   souborech už nahrazeny `%USERPROFILE%`).
+
+**Pravidla od uživatele:** UI, nastavení a texty v repozitáři anglicky,
+komunikace česky. Netvrdit nic neověřeného; testovat sám, s jeho nastavením
+(`settings.ini`: GPU, 2x, filtr 2, 4:3, okno, VSync 1, limit 120,
+MouseKeyboard). Před nočním během ověřit, že notebook neusne (spánek
+„Nikdy“ už nastavený; zbývá akce při zavření víka) a že nevisí starý
+`fbos.exe` (Správce úloh / `X05-kill.cmd`).
+
+**Text pro nový chat:**
+
+> Pokračuj na portu Fallout: Brotherhood of Steel v
+> `%USERPROFILE%\Desktop\FLESKA-Fallout\falloutbos`. Nejdřív přečti začátek
+> `docs/handoff/predani-projektu.md` (Stav k 21. 11. 2026). Úlohy pouštěj přes
+> frontu `build\queue` (Fronta.cmd), nic netvrď bez ověření a výkon měř s
+> nastavením hráče a se zapnutým „Nejlepším výkonem“.
+<!-- /handoff-2026-11-21 -->
+
+
 <!-- pad-port-update -->
 ## 21. 11. ráno: ovladač na portu 1, přímý skok do úrovně
 
@@ -19,8 +93,8 @@ B ji zavře (`fixwarp`); nová hra přes menu váže port 0 a postava chodí
 text, obal `sub_0005AA00`), `RECOMP_USB_REPLUG=<s>` (pad se odpojí a za 1 s
 připojí), `menu_peek.py --level "NAME [args]"`.
 Noční běhy 20.->21. 11. jsou neplatné: od 17:54 běžel skrytě visící
-`fbos.exe` (15 300 s CPU), notebook v noci usnul. Měření cutscény Carbonu
-(~30 FPS) je proto nutné zopakovat.
+`fbos.exe` (15 300 s CPU), notebook v noci usnul. „Cutscéna Carbonu jen
+~30 FPS“ byl úsporný režim napájení Windows, ne hra (viz níže).
 <!-- /pad-port-update -->
 
 <!-- vsh-par-update -->
@@ -382,7 +456,7 @@ pro A/B srovnání střídat běhy a brát víc vzorků.
 
 Nový PC: MSI Katana 15 HX B14WGK, Intel Core i7-14650HX (16 jader / 24
 vláken), 16 GB RAM, Intel UHD + **NVIDIA GeForce RTX 5070 Laptop GPU**.
-Projekt leží v `C:\Users\sesta\Desktop\FLESKA-Fallout\falloutbos`, venv v
+Projekt leží v `%USERPROFILE%\Desktop\FLESKA-Fallout\falloutbos`, venv v
 `..\fbos-venv` (Python 3.14.7, capstone 5.0.7), CMake se bere z VS 2022
 Build Tools (`...\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin`),
 není na PATH. Fronta: `Fronta.cmd`; úlohy v `build\queue` se spouštějí
@@ -916,11 +990,11 @@ nevznikly; změny nejsou commitnuté. Původní MIT licence zůstala zachována.
 
 ## Kde projekt najít a spustit
 
-- Workspace: `C:\Users\sesta\Documents\Codex\2026-11-18\a`
-- Repozitář hry: `C:\Users\sesta\Documents\Codex\2026-11-18\a\work\falloutbos`
-- Závislost: `C:\Users\sesta\Documents\Codex\2026-11-18\a\work\falloutbos\deps\xboxrecomp`
-- Spouštěč pro uživatele: `C:\Users\sesta\Documents\Codex\2026-11-18\a\outputs\Spustit-Fallout.cmd`
-- Aktuální EXE: `C:\Users\sesta\Documents\Codex\2026-11-18\a\work\falloutbos\bin\fbos.exe`
+- Workspace: `%USERPROFILE%\Documents\Codex\2026-11-18\a`
+- Repozitář hry: `%USERPROFILE%\Documents\Codex\2026-11-18\a\work\falloutbos`
+- Závislost: `%USERPROFILE%\Documents\Codex\2026-11-18\a\work\falloutbos\deps\xboxrecomp`
+- Spouštěč pro uživatele: `%USERPROFILE%\Documents\Codex\2026-11-18\a\outputs\Spustit-Fallout.cmd`
+- Aktuální EXE: `%USERPROFILE%\Documents\Codex\2026-11-18\a\work\falloutbos\bin\fbos.exe`
 - Větev hry: `codex/xbox-port`; závislost: `codex/fbos-present-capture`.
 - Výchozí revize hry: `ec7bd923e9281c79579ba4533aa76036934b9a91`.
 - Výchozí revize závislosti: `0a5d6385c51beb3e5e28b09dc886c28566f1689a`.
@@ -993,13 +1067,13 @@ Běžné hraní má zvuk zapnutý.
 
 ## Sestavení a ověření
 
-Python s Capstone je v `C:\Users\sesta\Documents\Codex\2026-11-18\a\work\fbos-venv\Scripts\python.exe`.
+Python s Capstone je v `%USERPROFILE%\Documents\Codex\2026-11-18\a\work\fbos-venv\Scripts\python.exe`.
 CMake, CTest a Visual Studio 2022 Build Tools jsou už nainstalované.
 Generované herní C je v `src/game/recomp/gen` a je ignorované Gitem.
 Na běžnou další úpravu runtime není nutné je znovu generovat.
 
 ```powershell
-$repo = 'C:\Users\sesta\Documents\Codex\2026-11-18\a\work\falloutbos'
+$repo = '%USERPROFILE%\Documents\Codex\2026-11-18\a\work\falloutbos'
 $cmake = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe'
 $ctest = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\ctest.exe'
 Set-Location -LiteralPath $repo
@@ -1022,7 +1096,7 @@ pro konkrétní příkaz, bez změny globálního nastavení.
 ## Data, ukládání a omezení
 
 Uživatel dodal obraz:
-`C:\Users\sesta\Downloads\Fallout - Brotherhood of Steel (USA)\Fallout - Brotherhood of Steel (USA).xiso.iso`.
+`%USERPROFILE%\Downloads\Fallout - Brotherhood of Steel (USA)\Fallout - Brotherhood of Steel (USA).xiso.iso`.
 SHA-256 `default.xbe`:
 `9295b6e0cc70024392c34f2df8795e5d28c9592b9cda45853549029dd833919c`.
 Použitá hra je USA Xbox, XDK 5558, title ID `0x49500008`, vstup `0x9547C`.
@@ -1054,7 +1128,7 @@ a zbytek vzorkování textur jsou další kandidáti k měření.
 Text pro nový chat:
 
 > Pokračuj v místním Xbox portu Fallout: Brotherhood of Steel.
-> Nejdřív přečti `C:\Users\sesta\Documents\Codex\2026-11-18\a\outputs\predani-projektu.md`
+> Nejdřív přečti `%USERPROFILE%\Documents\Codex\2026-11-18\a\outputs\predani-projektu.md`
 > a technické poznámky v `work/falloutbos/docs`. Aktuální sestava obsahuje
 > opravu vracení grafické paměti a zrychlení statistik softwarového rendereru.
 > Automatické testy musí zůstat ztišené. Navazuj na existující projekt a důkazy.
