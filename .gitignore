@@ -35,3 +35,4 @@ setup.log
 
 # Player settings written by Settings.cmd / Play.cmd
 settings.ini
+logs/

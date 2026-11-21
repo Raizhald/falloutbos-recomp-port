@@ -32,7 +32,11 @@ if defined CFG_Fullscreen set "RECOMP_FULLSCREEN=%CFG_Fullscreen%"
 if defined CFG_WindowScale set "RECOMP_WINDOW_SCALE=%CFG_WindowScale%"
 if "%CFG_FPSLimit%"=="0" (set "RECOMP_FPS_LIMIT=") else if defined CFG_FPSLimit set "RECOMP_FPS_LIMIT=%CFG_FPSLimit%"
 if "%CFG_Mute%"=="1" set "RECOMP_AUDIO_MUTE=1"
-bin\fbos.exe %*
+rem Every run writes its output to logs\last-run.log (the run before is kept as
+rem previous-run.log) -- send that file along when the game misbehaves.
+if not exist logs mkdir logs
+if exist logs\last-run.log move /y logs\last-run.log logs\previous-run.log >nul
+bin\fbos.exe %* > logs\last-run.log 2>&1
 exit /b %errorlevel%
 
 :defaults
