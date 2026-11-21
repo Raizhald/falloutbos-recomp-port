@@ -141,6 +141,40 @@ void sub_00086980(void)
     }
 }
 
+/* ---------------------------------------------------------------------------
+ * sub_0005AA00 -- game-text lookup by key hash (wrapped, tracing only).
+ *
+ * RECOMP_GTEXT_TRACE=<text>: log the key and the caller of every lookup whose
+ * string starts with <text> (ASCII, compared against the UTF-16 result), up
+ * to 20 lines. For finding the code behind a message on screen.
+ * ------------------------------------------------------------------------- */
+#include <stdio.h>
+
+extern void sub_0005AA00_gen(void);
+
+void sub_0005AA00(void)
+{
+    static const char *want = (const char *)-1;
+    static int logged;
+    uint32_t ret, key;
+    if (want == (const char *)-1)
+        want = getenv("RECOMP_GTEXT_TRACE");
+    ret = MEM32(g_esp);
+    key = MEM32(g_esp + 4);
+    sub_0005AA00_gen();
+    if (want && *want && logged < 20 && g_eax >= 0x10000u && g_eax < 0x04000000u) {
+        size_t i, n = strlen(want);
+        for (i = 0; i < n; i++)
+            if (MEM16(g_eax + 2 * (uint32_t)i) != (uint16_t)(unsigned char)want[i])
+                break;
+        if (i == n) {
+            logged++;
+            fprintf(stderr, "[GTEXT] key %08X -> %08X from %08X\n", key, g_eax, ret);
+            fflush(stderr);
+        }
+    }
+}
+
 /* ── Manual function overrides ─────────────────────────────── */
 
 /*

@@ -22,6 +22,9 @@ ap.add_argument('--steps', default='')
 ap.add_argument('--seconds', type=float, default=60)
 ap.add_argument('--carbon', action='store_true',
                 help='Start a new game first (tools/menu_nav.py); steps count from Carbon + 15 s')
+ap.add_argument('--level', default='',
+                help='go straight into this level (table name, e.g. CARB_1a) through '
+                     'resx\\arguments.txt; steps count from boot')
 args = ap.parse_args()
 cap = root / 'build' / args.name
 cap.mkdir(parents=True, exist_ok=False)
@@ -36,6 +39,10 @@ env = dict(os.environ, RECOMP_PAD_SCRIPT='', RECOMP_PB_EXEC='1', RECOMP_AUDIO_MU
            RECOMP_SAVE_DIR=str(cap / 'test-saves'),
            RECOMP_FB_PRESENT_DUMP=str(cap / 'latest.bmp'),
            RECOMP_FB_PRESENT_DUMP_EVERY='15')
+if args.level:
+    af = cap / 'arguments.txt'
+    af.write_bytes(b'dummy\r\n' + b''.join(w.encode() + b'\r\n' for w in args.level.split()))
+    env['RECOMP_PATH_OVERRIDE'] = 'resx\\arguments.txt=' + str(af)
 for k in ('RECOMP_FB_WINDOW', 'RECOMP_KEYBOARD', 'RECOMP_FB_DUMP', 'RECOMP_FB_VA'):
     env.pop(k, None)
 live = (cap / 'live.txt').open('a', encoding='ascii')
@@ -47,7 +54,7 @@ if args.carbon:
     spec.loader.exec_module(mn)
     nav = mn.MenuNav(cap / 'runtime.log')
 t0 = time.monotonic()
-menu_at = None
+menu_at = 0.0 if args.level else None
 next_start = 15.0
 next_cap = 0.0
 with (cap / 'runtime.log').open('wb') as log:

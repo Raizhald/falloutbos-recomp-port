@@ -1,5 +1,28 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- pad-port-update -->
+## 21. 11. ráno: ovladač na portu 1, přímý skok do úrovně
+
+Přímý start úrovně (`resx\arguments.txt`: `dummy`, název z tabulky v XBE na
+0xF5040; port mu soubor podstrčí přes `RECOMP_PATH_OVERRIDE`) končil hláškou
+„Please reconnect the controller to port 1“, kterou nešlo zavřít. Příčina:
+emulovaný pad byl na portu 0 kořenového hubu (2 porty), XAPI ho čísluje
+jako herní port 3 (index 2; pořadí 3, 4, 1, 2). Titulní obrazovka váže hráče
+1 na port, ze kterého přišel START, ale `sub_0006A4D0` při startu z
+arguments.txt nastaví hráči 1 port 0 (0x29A390); `sub_00079B90` pak každý
+snímek kopíruje „připojeno“ z 0x29A534 + port*0xE0 do 0x29A394 a
+`sub_0003B610` při 0 ukáže hlášku (klíč textu 0x90D572B7, `sub_00042490`).
+Oprava (`main.c`): výchozí `RECOMP_USB_NDP=4`, `RECOMP_USB_PORT=2` -> pad na
+herním portu 1. Ověřeno: skok do CARB_1a bez hlášky, chůze, START = pauza,
+B ji zavře (`fixwarp`); nová hra přes menu váže port 0 a postava chodí
+(`fixmenu`). Pomůcky: `RECOMP_GTEXT_TRACE=<text>` (kdo hledá daný herní
+text, obal `sub_0005AA00`), `RECOMP_USB_REPLUG=<s>` (pad se odpojí a za 1 s
+připojí), `menu_peek.py --level "NAME [args]"`.
+Noční běhy 20.->21. 11. jsou neplatné: od 17:54 běžel skrytě visící
+`fbos.exe` (15 300 s CPU), notebook v noci usnul. Měření cutscény Carbonu
+(~30 FPS) je proto nutné zopakovat.
+<!-- /pad-port-update -->
+
 <!-- vsh-par-update -->
 ## 20. 11. večer: propad FPS ve widescreenu, vertex programy na víc jader
 

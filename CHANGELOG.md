@@ -14,6 +14,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - Mouse and keyboard with mouse aim and a sight, keys in `mkb.ini`.
 - Player silhouette behind walls.
 - Fixed: Bink video artifacts (lifter: `movsx` of `bp`/`sp`).
+- Fixed: the controller is on the console's port 1 (was port 3); a level
+  started directly no longer stops at "Please reconnect the controller".
 - README rewritten for players; developer notes moved to `docs/development.md`.
 
 ### Earlier

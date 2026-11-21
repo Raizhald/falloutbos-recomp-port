@@ -281,7 +281,7 @@ static DWORD WINAPI profiler(LPVOID arg)
             prof_count(g_raw[i].tid, g_raw[i].rip, g_raw[i].n);
     qsort(g_prof, g_prof_used, sizeof(g_prof[0]), prof_cmp);
     fprintf(stderr, "[PROF] %u samples, top functions:\n", g_prof_total);
-    for (i = 0; i < g_prof_used && i < 60; i++)
+    for (i = 0; i < g_prof_used && i < 400; i++)
         fprintf(stderr, "[PROF] %5.1f%%  %6u  %s\n",
                 100.0 * g_prof[i].n / g_prof_total, g_prof[i].n, g_prof[i].name);
     fflush(stderr);
@@ -400,6 +400,17 @@ int main(int argc, char **argv)
      * host XInput pad drives it; RECOMP_PAD_SCRIPT drives it headless. */
     if (!getenv("RECOMP_USB"))
         _putenv_s("RECOMP_USB", "1");
+    /* The pad on the console's controller port 1. XAPI numbers the root hub
+     * ports 3, 4, 1, 2, so with the toolkit's default two-port hub the pad
+     * was on port 3. The title screen binds whichever port START came from,
+     * so the menus never minded -- but a level started straight from
+     * resx\arguments.txt (tools/level_tour.py) binds player 1 to port 1,
+     * found nothing there and stopped at "Please reconnect the controller to
+     * port 1", which no button could dismiss. */
+    if (!getenv("RECOMP_USB_NDP") && !getenv("RECOMP_USB_PORT")) {
+        _putenv_s("RECOMP_USB_NDP", "4");
+        _putenv_s("RECOMP_USB_PORT", "2");
+    }
 
     /* This title continually replaces texture palettes. The toolkit's legacy
      * mode retains freed contiguous blocks, eventually exhausting its arena.
