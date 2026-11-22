@@ -47,6 +47,30 @@ zacyklila (~1,1 mil. volání `ExQueryNonVolatileSetting` index 0xFF, tj.
 XQueryValue(XC_MAX_ALL) přes `sub_00095544` z `sub_00091084`) a skončila.
 Neopakovalo se; příčina neznámá. Při dalším pádu je v `logs\last-run.log`.
 
+**22. 11. dopoledne (bez uživatele):**
+- Čistá instalace z GitHubu do `..\fbos-cleantest` (`L3-cleaninstall.cmd`,
+  odpovědi přes stdin): klon -> Setup -> regen -> build -> nová hra -> Carbon,
+  0 faultů, 6 min. Našla chybu: Setup padal hned na kontrole `capstone`
+  (stderr pod `Stop`), opraveno `69f016d`. Netestováno: instalace cmake přes
+  winget (u uživatele cmake není na PATH, test dostal cmake z VS).
+- 16:9 projížďka 53 úrovní: vše načteno, 0 faultů (`build\levels\16x9`,
+  `all-169-*.png`). Automatická kontrola tmavých bočních pruhů nenašla ořez
+  (jen videa/menu a sporný snímek BAR rt-070). Místo, kde uživatel viděl
+  nedokreslené okraje, je potřeba od něj (screenshot).
+- 16:9 s nastavením hráče, okno+VSync+60: Carbon průměr 57 (poklesy 48), bar
+  53 (4:3 obojí 60). Pozor: od ~8:45 při vypnuté obrazovce spadla okenní
+  měření i ve 4:3 na ~33 FPS -- prostředí, ne hra (opt-out EcoQoS nepomohl,
+  vrácen). Okenní FPS měřit jen se zapnutou obrazovkou. Vliv
+  `RECOMP_VSH_THREADS` 12/16 proto nezměřen.
+- Pád ve skladu -- stopa: smyčka volá `sub_000915D2` (GetLocalTime) ->
+  `sub_0009157C` -> `sub_00091420` -> `sub_00091084` = XQueryValue(0xFF),
+  tedy časové pásmo z uživatelské sekce EEPROM; kernel pro 0xFF vrací nuly
+  (bias 0, DST zapnutý, data DST nulová). Možná příčina, neověřeno. Kernel
+  nově při >2000 voláních/s jednou vypíše návratové adresy ze stacku do
+  `logs\last-run.log`.
+- Míření myší ignoruje pohyb myši 3 s po použití ovladače (`aim.c`,
+  `mkb_pad_idle_ms`); s ovladačem neověřeno.
+
 **Otevřené (podle priority):**
 1. Čistá instalace `Setup.cmd` jako nový hráč (před zveřejněním).
 2. Pád ve skladu, pokud se zopakuje (log).
