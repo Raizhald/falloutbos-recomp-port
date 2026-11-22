@@ -49,8 +49,14 @@ function Install($id, $why, $size) {
 Say "Checking prerequisites..."
 if (-not (Have 'py')) { Install 'Python.Python.3.12' 'Python 3' '30 MB' }
 if (-not (Have 'py')) { Fail "Python is installed but 'py' is not on PATH yet; open a new window and run Setup.cmd again." }
-& py -3 -c "import capstone" 2>$null
-if ($LASTEXITCODE -ne 0) {
+# A native program's stderr under 'Stop' ends the script (see Run), and a
+# missing module prints a traceback there: check with 'Continue'.
+$prev = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+& py -3 -c "import capstone" 2>$null | Out-Null
+$haveCapstone = ($LASTEXITCODE -eq 0)
+$ErrorActionPreference = $prev
+if (-not $haveCapstone) {
     if (-not (Ask "The Python package 'capstone' (disassembler, about 3 MB) is missing. Install it with pip?")) { Fail "capstone is required." }
     Run 'pip install capstone' { py -3 -m pip install --user capstone }
 }

@@ -135,6 +135,12 @@ static void aim_hook(int active, float x, float y, float aspect)
            || mkb_target_held("lleft") || mkb_target_held("lright");
     if (mkb_target_held("rt"))
         return;                         /* target lock: the game aims */
+    /* Playing on the controller: the mouse lying by (or a touchpad brushed)
+     * must not turn the player away from what the pad is aiming at. Mouse
+     * attacks still aim; pointer moves alone do not, for 3 s after the pad
+     * was last touched. */
+    if (!s_force && !attacking && mkb_pad_idle_ms() < 3000)
+        return;
     if (!s_force && !attacking && (walking || moved_frames <= 0))
         return;
 
