@@ -1,5 +1,59 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- handoff-2026-11-22 -->
+## Stav k 22. 11. 2026 večer, nový PC (začni tady)
+
+**Kde to je.** Projekt teď na stolním PC: `E:\FLESKA-Fallout\falloutbos`
+(Ryzen 9 5900XT 16 jader, 32 GB, Radeon RX 6800 XT, Windows 10, monitor
+1920x1080 60 Hz, napájení Vysoký výkon, spánek vypnutý). Venv
+`E:\FLESKA-Fallout\fbos-venv` (Python 3.12, capstone, pillow, numpy).
+Překládá se Visual Studiem 18 (2026, MSVC 19.51) -- CMake si ho vybral sám;
+build 1 min 20 s. Původní exe z přenosu: `bin\fbos-prenos.exe`. Fronta
+(`Fronta.cmd`) běží, úlohy `build\queue\A*.cmd`, `B*.cmd`.
+
+**Zpětné čtení snímku asynchronně (`nv2a_backend_d3d11.c`).** Profil baru
+v 16:9 (`FBOS_PROFILE`, `build/bp-169`): herní vlákno ~96 % čeká na
+executor; executor ~72 % práce (vertex programy, back end 7 ms/snímek,
+hash textur 8 MB/snímek). Brzda: `gb_resolve` hned po `CopyResource`
+mapoval staging s `D3D11_MAP_READ` = CPU čekalo na celý snímek GPU.
+Test `RECOMP_GPU_READBACK=0`: bar 16:9 45.2 -> 58.7 FPS, back end 7.0 ->
+2.8 ms. Oprava: kruh 3 staging textur (`GRb`, `rb_finish`), mapuje se s
+`D3D11_MAP_FLAG_DO_NOT_WAIT`, do paměti hosta se snímek zapíše o 1-2 flipy
+později; `guest_fp` cíle se aktualizuje až po zápisu (kontrola přepsání
+CPU v `g_tex_srv` dál funguje). `RECOMP_GPU_READBACK=1` = staré
+synchronní, `2` = výchozí. Hash textur (`g_hash`) na 4 nezávislých
+proudech. Ověřeno: boot_check 8/8; bar 16:9 bez VSync/limitu 56.3 FPS
+(min 51, dříve 45.2 / 39); snímky baru a inventáře v pořádku
+(`build/as-b169-shots`); 4:3 bar 59.9 s nastavením hráče. Neověřeno:
+náhledy uložených pozic (budou o 1-2 snímky starší).
+
+**Měření s nastavením hráče (okno, 2x, filtr 2, VSync, limit 120):**
+před opravou Carbon 4:3 59.6, Carbon 16:9 56.1 (min 44), bar 4:3 59.9,
+bar 16:9 49.6. Po opravě s VSync bar 16:9 bimodální v obou režimech
+(A/B `build/ab-*`: ~55 stabilně, nebo ~47 s propady na 28-35) --
+propustnost je těsně pod 60 a VSync láme snímky na 33 ms. Stabilní 60 v
+16:9 chce ~20 % rezervu: vertex programy na GPU (velký úkol).
+
+**Další zjištění:**
+- Logika hry jede podle reálného času: chůze 3 s dojde stejně daleko při
+  59 i 126 FPS (`tools/fps_logic_check.py`, `build/fpslogic`). Monitor
+  60 Hz, takže >60 FPS tu nedává smysl.
+- Přímý skok do úrovně (arguments.txt) při `RECOMP_FPS_LIMIT=30` vždy
+  skončí na „Please reconnect the controller to port 2“ (3/3). Přes menu
+  při 30 FPS v pořádku (`build/menu30`) -- jen testovací cesta.
+- `RECOMP_GPU_UI_FILTER` nemá na HUD vliv: hra HUD vzorkuje nejbližším
+  texelem, TEXFILTER na něj nesahá; výřezy HUDu pixelově shodné
+  (`build/uifilter`). Pokus odstraněn, uložen v
+  `docs/handoff/ui-filter-experiment.patch`. Neostrost HUDu = nízké
+  rozlišení grafiky; v okně 1280x960 je 1:1. Případně „sharp bilinear“ v
+  `g_present` pro neceločíselné měřítko (celá obrazovka).
+- `tools/boot_check.py` je nově ztlumený (`RECOMP_AUDIO_MUTE=1`).
+
+**Otevřené (podle priority):** vertex programy na GPU (16:9 na stabilních
+60); 16:9 v interiérech a dialozích; čistá instalace na cizím PC; pád ve
+skladu, pokud se zopakuje; kooperace.
+<!-- /handoff-2026-11-22 -->
+
 <!-- handoff-2026-11-21 -->
 ## Stav k 21. 11. 2026 večer (začni tady)
 

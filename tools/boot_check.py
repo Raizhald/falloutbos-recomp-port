@@ -57,7 +57,8 @@ def main(argv):
         print("boot_check: FAIL (no executable at %s)" % exe)
         return 1
 
-    env = dict(os.environ, RECOMP_PAD_SCRIPT=PAD, RECOMP_PB_EXEC="1")
+    env = dict(os.environ, RECOMP_PAD_SCRIPT=PAD, RECOMP_PB_EXEC="1",
+               RECOMP_AUDIO_MUTE="1")              # tests run silent
     env.pop("RECOMP_FB_WINDOW", None)              # headless: never a window
     try:
         p = subprocess.run([exe], cwd=ROOT, env=env, capture_output=True,

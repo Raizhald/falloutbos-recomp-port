@@ -17,6 +17,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - Fixed: the controller is on the console's port 1 (was port 3); a level
   started directly no longer stops at "Please reconnect the controller".
 - README rewritten for players; developer notes moved to `docs/development.md`.
+- Faster widescreen: the frame is copied back to guest memory without
+  waiting for the GPU (bar 16:9, no v-sync: 45 -> 56 FPS).
 
 ### Earlier
 

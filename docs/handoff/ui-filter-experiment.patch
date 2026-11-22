@@ -1,0 +1,38 @@
+--- a/src/kernel/nv2a_backend_d3d11.c
++++ b/src/kernel/nv2a_backend_d3d11.c
+@@ -378,6 +378,7 @@
+      * plus bicubic (B-spline) magnification. Textures the title samples
+      * nearest -- HUD strips, lookup tables -- stay nearest in every mode. */
+     uint32_t texfilter;
++    uint32_t ui_filter;     /* RECOMP_GPU_UI_FILTER, see gb_draw */
+     /* RECOMP_SILHOUETTE: the player's batches of this frame, drawn again
+      * where something hides them (depth GREATER, stencil != 1). */
+     int sil;
+@@ -587,6 +588,9 @@
+     G.check_every_bind = e && strcmp(e, "batch") == 0;
+     e = getenv("RECOMP_GPU_TRACE");
+     G.trace_frame = e ? (uint32_t)atoi(e) : 0;
++    e = getenv("RECOMP_GPU_UI_FILTER");
++    G.ui_filter = e ? (uint32_t)atoi(e) : 0;
++    if (G.ui_filter > 2) G.ui_filter = 2;
+     e = getenv("RECOMP_GPU_TEXFILTER");
+     G.texfilter = e ? (uint32_t)atoi(e) : 0;
+     if (G.texfilter > 2) G.texfilter = 2;
+@@ -1703,7 +1707,16 @@
+             /* RECOMP_GPU_TEXFILTER: what the title filters linearly gets
+              * mipmaps (1) and bicubic magnification too (2); what it asks to
+              * be sampled nearest (HUD strips, lookup tables) stays nearest. */
+-            if (G.texfilter && linear && src == NULL) {
++            /* RECOMP_GPU_UI_FILTER: screen-space draws without a depth test
++             * (the HUD, menus, text) are 2D art drawn at the guest's own
++             * size; smoothing meant for magnified world textures blurs them.
++             * 1 = plain bilinear for those, 2 = nearest. 0 = as the world. */
++            int ui = G.ui_filter && b->ext && !rs->depth_test_enable && src == NULL;
++            if (ui && G.ui_filter == 2)
++                linear = 0;
++            else if (ui)
++                linear = linear ? 1 : 0;
++            else if (G.texfilter && linear && src == NULL) {
+                 linear = 2;
+                 if (G.texfilter == 2)
+                     cb->misc[1] |= 1u << st;
