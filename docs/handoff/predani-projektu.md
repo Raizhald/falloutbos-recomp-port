@@ -69,7 +69,10 @@ Neopakovalo se; příčina neznámá. Při dalším pádu je v `logs\last-run.lo
   nově při >2000 voláních/s jednou vypíše návratové adresy ze stacku do
   `logs\last-run.log`.
 - Míření myší ignoruje pohyb myši 3 s po použití ovladače (`aim.c`,
-  `mkb_pad_idle_ms`); s ovladačem neověřeno.
+  `mkb_pad_idle_ms`). Ověřil hráč: boj zblízka na ovladači (s autofire) se
+  předtím chybně natáčel / musel stát těsně u nepřítele, teď funguje dobře.
+  VSH vlákna 8/12/16 v baru 16:9: 53,1 / 52,0 / 50,5 FPS -- víc nepomáhá,
+  brzda 16:9 je jinde (pravděpodobně čekání na GPU, viz KickOff).
 
 **Otevřené (podle priority):**
 1. Čistá instalace `Setup.cmd` jako nový hráč (před zveřejněním).
