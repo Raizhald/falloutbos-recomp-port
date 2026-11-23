@@ -1,5 +1,21 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- ws-tour-2026-11-23 -->
+## 23. 11. dopoledne: 16:9 ve všech 53 úrovních bez ořezu na 4:3
+
+Projížďka `level_tour.py --aspect 16:9` (2x, Best, async read-back): 53/53
+načteno, 0 faultů, 0 nevyřešených volání, min. 45.6 FPS (DCKS_1, bez okna).
+Nový `tools/ws_edge_check.py` hledá na 159 snímcích svislou hranici
+„uvnitř 4:3 kresleno, venku černo“ přesně na okraji 4:3: ve hře nejvýš 5 %
+řádků (běžná geometrie). Jediné nálezy (RINS_3 rt-050/070 90-100 %) jsou
+hlavní menu a nastavení -- tlačítka testu hráče vrátila do menu; menu,
+nastavení a načítání jsou 4:3 záměrně, stejně jako HUD. Tmavé boky v
+ruinách (RINS_1-3) jsou tma úrovně, scéna je za hranicí vidět. Bod
+„v interiérech a dialozích hra vyřazuje vše mimo 4:3“ se tedy nepotvrdil
+(bar ověřen i číselně; dialogová kamera 0x5D4E10 je ve `sub_00086980`
+rozšířena). Pokud hráč okraje uvidí, je potřeba screenshot a místo.
+<!-- /ws-tour-2026-11-23 -->
+
 <!-- coop-2026-11-23 -->
 ## 23. 11. ráno: kooperace dvou hráčů funguje (`RECOMP_USB_PADS=2`)
 
@@ -73,7 +89,7 @@ propustnost je těsně pod 60 a VSync láme snímky na 33 ms. Stabilní 60 v
 - `tools/boot_check.py` je nově ztlumený (`RECOMP_AUDIO_MUTE=1`).
 
 **Otevřené (podle priority):** vertex programy na GPU (16:9 na stabilních
-60); 16:9 v interiérech a dialozích; čistá instalace na cizím PC; pád ve
+60); čistá instalace na cizím PC; pád ve
 skladu, pokud se zopakuje; kooperace.
 <!-- /handoff-2026-11-22 -->
 
