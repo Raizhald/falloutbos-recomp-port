@@ -1,5 +1,26 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- release-2026-11-23 -->
+## 23. 11. odpoledne: příprava vydání pro hráče
+
+Audit historie obou repozitářů před zveřejněním: žádná herní data, žádné
+vygenerované C ani `fbos.exe`, žádné tokeny/klíče (hledány vzory ghp_,
+github_pat_, sk-, AKIA, privátní klíče). Toolkit obsahuje jen syntetické
+testovací soubory (`tests/vcache.bin` = výstup testu, `tools/conformance/
+test.xbe` z `mkxbe.py`, `sine.wma`). V historii projektu zůstává v 5
+commitech 19.-21. 11. cesta `C:\Users\<účet>` -- uživatel ji nechal.
+Setup: ISO se hledá i o složku hlouběji ve Stažených (dřív ho nenašel a
+hráč musel psát cestu), po rozbalení kontrola SHA-256 `default.xbe` proti
+USA verzi (jinak varování a volba skončit). README/Settings: 16:9 už ne
+„experimental“, kooperace, aktualizované známé problémy, věta o
+nespojení s Bethesdou/Interplay.
+Čistá instalace z GitHubu (větev `claude/2026-11-23-release`) do
+`E:\fbos-cleantest-1123`: klon -> Setup (odpovědi y/n přes stdin) ->
+nalezené ISO -> rozbalení -> kontrola disku -> regen -> build za 8 min ->
+boot_check 8/8. Neověřeno: instalace nástrojů přes winget na PC bez nich
+(tady už byly) a stažení cizím uživatelem (repozitáře zatím soukromé).
+<!-- /release-2026-11-23 -->
+
 <!-- rbfix-2026-11-23 -->
 ## 23. 11. odpoledne: pád při načítání baru z asynchronního read-backu (opraveno)
 
