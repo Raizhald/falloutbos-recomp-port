@@ -23,6 +23,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   controller into the console's port 2; Start New Game > Two Player.
 - The console's time zone is the PC's (it was all zeros: daylight time on
   with month-0 dates, suspected in a hang after an autosave).
+- Vertex programs run 8 vertices at a time (bit-identical results): bar 16:9
+  ~50 -> ~62 FPS, Carbon 16:9 ~76 -> ~84 FPS without a frame limit.
 
 ### Earlier
 

@@ -1,5 +1,27 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- vsh-batch-2026-11-23 -->
+## 23. 11.: vertex programy po 8 vrcholech (`nv2a_vsh_run_batch`)
+
+Interpret běžel vrchol po vrcholu (každá instrukce: čtení dekódované
+instrukce, swizzly přes indexy, switch). Nově `nv2a_vsh_run_batch(n<=8)`
+(`nv2a_vsh_interp.c`): registry jako složka x pruh, konstanta bez a0 se
+načte jednou pro všech 8, MAC operace jsou smyčky přes pruhy (SIMD
+překladačem), ILU (rcp, rcc, rsq, exp, log, lit) volá tutéž skalární
+`run_ilu` po pruzích; stejné operace ve stejném pořadí (/fp:precise, bez
+FMA) => bitově shodné výsledky. Program s CXT_WRITE běží dál po jednom.
+`nv2a_vsh_prepare` dekóduje program před fondem vláken.
+`nv2a_pb_exec.c`: `transform_list` (načtení atributů, dávka, `xf_post` =
+w 0 -> 1 a AA měřítko) používá fond vláken i sériová cesta s cache.
+Přepínače: `RECOMP_VSH_BATCH=0` (staré chování), `RECOMP_VSH_VERIFY=1`
+(každá dávka znovu skalárně a porovnání bit po bitu).
+Ověřeno: VERIFY v 6 úrovních (CRB_1a, BAR, WARE_1, MILL_1, CRTR_B,
+RINS_1; desítky milionů dávek, skinning) 0 rozdílů; boot_check 8/8; 0
+faultů. Výkon (level_tour 16:9 bez okna, 2 kola A/B): BAR 47.1/53.8 ->
+65.5/59.1, CRB_1a 78.7/73.7 -> 84.2/84.4 FPS. S VSync v okně zatím
+neměřeno (bar 16:9 je teď kolem hranice 60).
+<!-- /vsh-batch-2026-11-23 -->
+
 <!-- eeprom-tz-2026-11-23 -->
 ## 23. 11.: časové pásmo v EEPROM (podezření na pád ve skladu)
 
