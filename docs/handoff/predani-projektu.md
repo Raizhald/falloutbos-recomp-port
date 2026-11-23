@@ -1,5 +1,28 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- eeprom-tz-2026-11-23 -->
+## 23. 11.: časové pásmo v EEPROM (podezření na pád ve skladu)
+
+Smyčka pádu z 21. 11. volala GetLocalTime -> `sub_00091084` =
+XQueryValue(XC_MAX_OS 0xFF, buffer 0x100). Kernel na 0xFF vracel samé nuly
+(letní čas zapnutý, data přechodu měsíc 0), jednotlivé dotazy XC_TZ_* také
+nuly a XC_TIMEZONE_BIAS natvrdo -300 (USA východ). Rozložení podle kódu
+hry: bias +4, jména +8/+0xC, data +0x18/+0x1C (měsíc, týden, den v týdnu,
+hodina = TIME_ZONE_INFORMATION), biasy +0x28/+0x2C, MiscFlags +0x58 (bit
+1 = bez letního času). Oprava (toolkit `kernel_xbox.c`, nový
+`host_timezone.c`): uživatelská sekce 0x60 B se sestaví jednou z časového
+pásma Windows (GetTimeZoneInformation; bez DST nebo s datem pro konkrétní
+rok -> bez letního času a bit 1), jména CET/CEST (jinak STD/DST);
+XC_MAX_OS, XC_TIMEZONE_BIAS..XC_TZ_DLT_BIAS a XC_MISC se odpovídají z ní,
+zbytek beze změny. Log: `[KERNEL] EEPROM time zone: bias -60 min, std 0,
+dlt -60, daylight on (3/5/0 2:00 -> 10/5/0 3:00)`. Ověřeno: build,
+boot_check 8/8, Carbon 0 faultů. Neověřeno: že pád zmizel (stal se jednou)
+a uložení pozice s novým časem (autosave jen při přechodu úrovně) -- při
+hraní zkontrolovat čas pozice v Load Game.
+`tools/boot_check.py` nově ukládá do `build/boot-check-saves`
+(`RECOMP_SAVE_DIR`), ne do hráčových `saves\`.
+<!-- /eeprom-tz-2026-11-23 -->
+
 <!-- ws-tour-2026-11-23 -->
 ## 23. 11. dopoledne: 16:9 ve všech 53 úrovních bez ořezu na 4:3
 

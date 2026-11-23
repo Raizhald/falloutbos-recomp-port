@@ -21,6 +21,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   waiting for the GPU (bar 16:9, no v-sync: 45 -> 56 FPS).
 - Two-player co-op (experimental): `Players=2` in Settings plugs a second
   controller into the console's port 2; Start New Game > Two Player.
+- The console's time zone is the PC's (it was all zeros: daylight time on
+  with month-0 dates, suspected in a hang after an autosave).
 
 ### Earlier
 
