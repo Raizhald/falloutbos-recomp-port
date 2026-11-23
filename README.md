@@ -52,6 +52,11 @@ An Xbox controller (XInput) works as on the console. Mouse and keyboard:
 Holding attack keeps attacking, on the mouse and on a controller (`autofire` and
 `autofire_rate` in `mkb.ini`). Keys can be changed in `mkb.ini`.
 
+**Two players (co-op, experimental).** Set **Players** to 2 in `Settings.cmd`,
+plug in two Xbox controllers, then choose Start New Game > Two Player. The
+first controller is player 1, the second is player 2 (it presses A to pick
+its character). Mouse and keyboard stay with player 1.
+
 ## Settings
 
 ![Character select](docs/images/character-select.jpg)
@@ -64,6 +69,7 @@ Holding attack keeps attacking, on the mouse and on a controller (`autofire` and
 - **Aspect ratio** - 4:3 (original), 16:9, 16:10, 21:9 (widescreen is experimental:
   indoors and in conversations the sides can stay black)
 - **Silhouette** - the player shows through walls
+- **Players** - 1, or 2 for co-op with two Xbox controllers
 - **Display mode, window size, frame rate limit, v-sync, controls, mute**
 
 ## What has been done

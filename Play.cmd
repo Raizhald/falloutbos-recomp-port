@@ -27,6 +27,11 @@ rem (graphics card renderer only); 4:3 is the original picture.
 set "RECOMP_WIDESCREEN="
 if not defined CFG_AspectRatio set "CFG_AspectRatio=4:3"
 if /i "%CFG_Renderer%"=="GPU" if not "%CFG_AspectRatio%"=="4:3" set "RECOMP_WIDESCREEN=%CFG_AspectRatio%"
+rem Players=2 plugs a second controller into the console's port 2 for the
+rem game's own two-player mode (Start New Game > Two Player): Xbox
+rem controller 1 is player 1, controller 2 is player 2.
+set "RECOMP_USB_PADS="
+if "%CFG_Players%"=="2" set "RECOMP_USB_PADS=2"
 if defined CFG_VSync set "RECOMP_VSYNC=%CFG_VSync%"
 if defined CFG_Fullscreen set "RECOMP_FULLSCREEN=%CFG_Fullscreen%"
 if defined CFG_WindowScale set "RECOMP_WINDOW_SCALE=%CFG_WindowScale%"
@@ -54,6 +59,7 @@ exit /b %errorlevel%
   echo FPSLimit=60
   echo [Input]
   echo Controls=MouseKeyboard
+  echo Players=1
   echo [Audio]
   echo Mute=0
 )

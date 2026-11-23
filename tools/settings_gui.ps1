@@ -8,7 +8,7 @@ $ini  = Join-Path $root 'settings.ini'
 
 $cfg = [ordered]@{
     Renderer = 'GPU'; ResolutionScale = '2'; TextureFilter = '2'; AspectRatio = '4:3'; Silhouette = '1'; VSync = '1'; Fullscreen = '0'
-    WindowScale = '2'; FPSLimit = '60'; Controls = 'MouseKeyboard'; Mute = '0'
+    WindowScale = '2'; FPSLimit = '60'; Controls = 'MouseKeyboard'; Players = '1'; Mute = '0'
 }
 if (Test-Path $ini) {
     foreach ($line in Get-Content $ini) {
@@ -31,6 +31,7 @@ function Save-Settings {
         "FPSLimit=$($cfg.FPSLimit)"
         '[Input]'
         "Controls=$($cfg.Controls)"
+        "Players=$($cfg.Players)"
         '[Audio]'
         "Mute=$($cfg.Mute)"
     )
@@ -112,6 +113,9 @@ $controls = New-Combo @('Mouse and keyboard (keys in mkb.ini)', 'Keyboard only (
                       ([Math]::Max(0, [Array]::IndexOf($controlsValues, $cfg.Controls)))
 Add-Row 'Controls' $controls
 
+$players = New-Combo @('1 player', '2 players (two Xbox controllers)') ([int]($cfg.Players -eq '2'))
+Add-Row 'Players' $players
+
 $sil = New-Object System.Windows.Forms.CheckBox
 $sil.Text = 'Show the player through walls'
 $sil.AutoSize = $true
@@ -135,7 +139,9 @@ $note.Text = "Resolution, texture filtering, aspect ratio and V-Sync need the gr
              "Mouse and keyboard: WASD move, aim with the mouse, left click attack, right click target lock, " +
              "Space jump, E talk/open, F special, Q stimpak, wheel weapons, " +
              "middle mouse drag turns the camera, Tab inventory, Esc pause; F9 frees the mouse. " +
-             "The window shrinks to fit the screen if it is too large."
+             "The window shrinks to fit the screen if it is too large. " +
+             "2 players: plug in two Xbox controllers, then Start New Game > Two Player; " +
+             "the second player presses A to pick a character."
 $grid.Controls.Add($note)
 $grid.SetColumnSpan($note, 2)
 
@@ -176,6 +182,7 @@ function Read-Form {
     $cfg.FPSLimit        = $fpsValues[$fps.SelectedIndex]
     $cfg.VSync           = $(if ($vsync.Checked) { '1' } else { '0' })
     $cfg.Controls        = $controlsValues[$controls.SelectedIndex]
+    $cfg.Players         = $(if ($players.SelectedIndex -eq 1) { '2' } else { '1' })
     $cfg.Silhouette      = $(if ($sil.Checked) { '1' } else { '0' })
     $cfg.Mute            = $(if ($mute.Checked) { '1' } else { '0' })
 }

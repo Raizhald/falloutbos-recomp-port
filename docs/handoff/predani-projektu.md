@@ -1,5 +1,28 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- coop-2026-11-23 -->
+## 23. 11. ráno: kooperace dvou hráčů funguje (`RECOMP_USB_PADS=2`)
+
+Hra má vlastní režim pro dva hráče: Start New Game > One Player / **Two
+Player** / Tutorial. Toolkit už uměl víc emulovaných ovladačů
+(`RECOMP_USB_PADS=1..4`, `ohci.c`: další pad se připojí ~1 s po
+nakonfigurování předchozího na další port; s výchozím `NDP=4, PORT=2` je pad
+2 na kořenovém portu 4 = herní port 2). Pad n čte XInput n
+(`usb_gamepad_report` -> `xbox_InputGetState(n)`); myš a klávesnice se
+přimíchávají jen do portu 0. Živý vstup i pad skript berou předponu `p2-`.
+Ověřeno bez okna (`tools/coop_probe.py`, menu řízené podle běžících
+videí): `build/coop-nav2` a `coop-nav4` -- Two Player, na výběru postavy
+štítky P1 (Nadia) a P2 (Cyrus), Carbon se dvěma postavami a dvěma HUDy
+(vlevo/vpravo), 0 faultů. `coop-nav3` skončil v Tutorialu (sonda poslala
+dolů+A v jednom kroku a kurzor ujel; opraveno -- dolů a A v dalším kroku).
+Jeden hráč s připojeným druhým padem: boot_check 8/8.
+Nastavení: `settings.ini` `[Input] Players=1|2` -> `Play.cmd` nastaví
+`RECOMP_USB_PADS=2`; `Settings.cmd` má řádek „Players“; README popisuje
+spuštění. Neověřeno: hraní se dvěma skutečnými ovladači (musí hráč),
+klávesnice+myš pro hráče 1 a ovladač pro hráče 2 (dnes by ovladač 1 patřil
+hráči 1; chtělo by to přepínač posunu XInput indexu).
+<!-- /coop-2026-11-23 -->
+
 <!-- handoff-2026-11-22 -->
 ## Stav k 22. 11. 2026 večer, nový PC (začni tady)
 
