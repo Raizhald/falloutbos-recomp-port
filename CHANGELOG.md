@@ -25,6 +25,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   with month-0 dates, suspected in a hang after an autosave).
 - Vertex programs run 8 vertices at a time (bit-identical results): bar 16:9
   ~50 -> ~62 FPS, Carbon 16:9 ~76 -> ~84 FPS without a frame limit.
+- Fixed: a rare crash while loading a level (the late frame copy could land
+  in memory the game had already reused).
 
 ### Earlier
 

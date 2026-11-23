@@ -1,5 +1,27 @@
 # Předání projektu Fallout: Brotherhood of Steel
 
+<!-- rbfix-2026-11-23 -->
+## 23. 11. odpoledne: pád při načítání baru z asynchronního read-backu (opraveno)
+
+`build/vb-b169-1` (okno, 16:9, VSync, cesta Carbon -> bar): `[FAULT]` v
+`nv2a_pb_scan_segment+0x5C2` při načítání baru, čtení guest 0x85940590 --
+hodnota vypadá jako pixel (90 05 94 85), ne adresa. Příčina: asynchronní
+read-back (22. 11.) zapisoval snímek do paměti hosta o 1-2 flipy později;
+při načítání úrovně hra uvolní povrchy a paměť hned použije jinak
+(pushbuffer), takže starý snímek přepsal příkazy. Předchozích 13 běhů s
+barem bez pádu (závod). Oprava (`nv2a_backend_d3d11.c`): při flipu se uloží
+otisk paměti cíle (`GRb.mem_fp`); `rb_finish` zapíše jen když cíl ještě
+existuje a paměť se od flipu nezměnila (hry do ní samy nepíší), jinak
+snímek zahodí s `[GPUB] read-back of ... dropped` (max. 5 řádků). Po
+vlastním zápisu se otisk přenese na čekající kopie na stejnou adresu.
+Ověřeno: build, boot_check 8/8, 3x okno 16:9 VSync Carbon -> bar
+(`build/rbfix-b169-1..3`) bez faultu, 59.7/60.0/59.9 FPS (min 57-59);
+hlášku o zahození zatím žádný běh nevypsal (závod je vzácný, větev
+zahození neprošla ostrým případem).
+Výkon po dávkových vertex programech, okno 16:9 VSync limit 120: bar
+60.2 (min 58, `vb-b169-2`), Carbon 59.5 (min 53, `vb-c169`).
+<!-- /rbfix-2026-11-23 -->
+
 <!-- vsh-batch-2026-11-23 -->
 ## 23. 11.: vertex programy po 8 vrcholech (`nv2a_vsh_run_batch`)
 
