@@ -66,8 +66,8 @@ its character). Mouse and keyboard stay with player 1.
 - **Renderer** - graphics card (Direct3D 11, default) or software
 - **Resolution** - 1x to 4x the original 480 lines
 - **Texture filtering** - original, smooth or best (bicubic)
-- **Aspect ratio** - 4:3 (original), 16:9, 16:10, 21:9 (widescreen is experimental:
-  indoors and in conversations the sides can stay black)
+- **Aspect ratio** - 4:3 (original), 16:9, 16:10, 21:9 (menus, the HUD and the videos
+  stay 4:3)
 - **Silhouette** - the player shows through walls
 - **Players** - 1, or 2 for co-op with two Xbox controllers
 - **Display mode, window size, frame rate limit, v-sync, controls, mute**
@@ -77,7 +77,8 @@ its character). Mouse and keyboard stay with player 1.
 Compared with the Xbox original:
 
 - **Graphics card renderer** (Direct3D 11) with higher resolutions, v-sync and full screen
-- **Widescreen** 16:9 / 16:10 / 21:9 (experimental)
+- **Widescreen** 16:9 / 16:10 / 21:9, at 60 FPS
+- **Two-player co-op** with two Xbox controllers (experimental)
 - **Texture filtering** - mipmaps and bicubic smoothing
 - **Mouse and keyboard** - aiming with the mouse, rebindable keys
 - **Player silhouette** behind walls
@@ -94,8 +95,10 @@ to the end yet.
 
 Known problems:
 
-- Widescreen is experimental: indoors and in conversations the sides can stay black.
-- One crash on entering the warehouse (once; it did not happen again).
+- Co-op has only been tried in automated tests, not yet by two players.
+- One crash in the raiders' warehouse (once; it did not happen again, and its
+  suspected cause, the console's time zone, has been fixed).
+- Sound effects such as echo in caves are not reproduced yet.
 - On a laptop, set Windows to **Best performance** (Settings > System > Power) and
   keep it plugged in: the game draws on the processor, and power saving halves
   the frame rate.
@@ -110,4 +113,6 @@ For developers (building by hand, debugging switches, how it works):
 
 MIT, see [LICENSE](LICENSE). It covers the code in this repository only.
 Fallout: Brotherhood of Steel and its data belong to their owners; nothing from the
-game is in this repository.
+game is in this repository, and the setup builds the port only from your own disc.
+This is a fan project, not affiliated with or endorsed by Bethesda Softworks or
+Interplay. Fallout is a trademark of Bethesda Softworks LLC.

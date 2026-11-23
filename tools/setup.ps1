@@ -78,7 +78,8 @@ if (-not (Test-Path (Join-Path $Toolkit '.git'))) {
 
 # ---- 3. your disc --------------------------------------------------------------
 if (-not (Test-Path (Join-Path $Root 'game\default.xbe'))) {
-    $iso = Get-ChildItem -Path $Root, "$env:USERPROFILE\Downloads" -Filter '*.iso' -ErrorAction SilentlyContinue |
+    # One level down too: a downloaded disc usually unpacks into its own folder.
+    $iso = Get-ChildItem -Path $Root, "$env:USERPROFILE\Downloads" -Filter '*.iso' -Recurse -Depth 1 -ErrorAction SilentlyContinue |
            Where-Object { $_.Name -match 'Fallout' -and $_.Name -match 'Brotherhood' } | Select-Object -First 1
     if ($iso -and (Ask "Use this disc image: $($iso.FullName)?")) { $path = $iso.FullName }
     else { $path = (Read-Host "Path to your Fallout: Brotherhood of Steel (USA) .iso, or to a folder with its files (default.xbe)").Trim('"') }
@@ -91,6 +92,17 @@ if (-not (Test-Path (Join-Path $Root 'game\default.xbe'))) {
         Run 'unpacking your disc into game\' { Push-Location $Toolkit; py -3 -m tools.xiso unpack $path -o (Join-Path $Root 'game'); $c = $LASTEXITCODE; Pop-Location; $global:LASTEXITCODE = $c }
     }
 } else { Say "Disc already unpacked into game\" }
+
+# ---- 3b. the right game? ------------------------------------------------------
+# The port is built for one release: the USA disc. Another region or version
+# has different code, so the recompiled game would not run.
+$xbeHash = (Get-FileHash -Algorithm SHA256 (Join-Path $Root 'game\default.xbe')).Hash.ToLower()
+if ($xbeHash -ne '9295b6e0cc70024392c34f2df8795e5d28c9592b9cda45853549029dd833919c') {
+    Say "Warning: game\default.xbe is not the USA release this port is made for (SHA-256 $xbeHash)."
+    if (-not (Ask "Continue anyway? It will most likely not work.")) {
+        Fail "the disc is not Fallout: Brotherhood of Steel (USA). Delete the game folder and run Setup.cmd again with the USA disc image."
+    }
+} else { Say "Disc checked: Fallout: Brotherhood of Steel (USA)." }
 
 # ---- 4. generate the C ---------------------------------------------------------
 if (-not (Test-Path (Join-Path $Root 'src\game\recomp\gen\recomp_funcs.h'))) {
